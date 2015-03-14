@@ -1,0 +1,277 @@
+#!/usr/bin/env python
+
+r'''
+A simple tool to start, stop, and check status of a process. Intended to be an
+extremely simple alternative to full-featured tools like upstart or monit, more
+suitable for use in build systems, test harnesses, etc.
+
+Author: jlevy
+'''
+
+from __future__ import print_function
+import socket, sys, os, time, shlex
+from threading import Thread
+# The subprocess module has known threading issues, so prefer subprocess32.
+try:
+  import subprocess32 as subprocess
+except:
+  import subprocess
+
+NAME = "procdog"
+
+SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
+
+CMD_STATUS = "status"
+CMD_STOP = "stop"
+
+RESP_STOPPED = "stopped"
+RESP_RUNNING = "running"
+RESP_KILLED = "killed"
+RESP_EXITED = "exited"
+RESP_INVALID = "invalid"
+RESP_ERROR = "error"
+
+EOM = "\n"
+SOCKET_TIMEOUT = 3
+
+DEBUG = True
+
+def _debug(msg):
+  if DEBUG:
+    print("%s: %s" % (NAME, msg), file=sys.stderr)
+
+def _die(msg):
+  print("%s: error: %s" % msg, file=sys.stderr)
+  sys.exit(1)
+
+
+class StateException(Exception):
+    pass
+class NotRunningException(StateException):
+    pass
+class AlreadyRunningException(StateException):
+    pass
+
+
+def _rm_socket_path(path, silent=False):
+  if silent:
+    try:
+      os.unlink(path)
+    except:
+      pass
+  else:
+    try:
+      os.unlink(path)
+    except OSError:
+      if os.path.exists(path):
+        raise
+
+def _recv_msg(sock):
+  '''Receive a (short) newline-delimited command. Trims whitespace.'''
+  data = ""
+  while True:
+    more_data = sock.recv(1024)
+    data += more_data
+    if not more_data or more_data.find(EOM) >= 0:
+      break
+  return data.split(EOM)[0].strip()
+
+def _listen(socket_path, handler):
+  '''Listen on Unix domain socket, calling handler() on the received commands and returning
+     the results.'''
+
+  sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+  sock.bind(socket_path)
+  sock.listen(16)
+  _debug("monitor: listening on %s" % socket_path)
+
+  while True:
+    connection, client_address = sock.accept()
+    _debug("monitor: listen accept")
+    try:
+      cmd = _recv_msg(connection)
+      _debug("monitor: received command '%s'" % cmd)
+      response = handler(cmd)
+      connection.sendall(response + EOM)
+    finally:
+      connection.close()
+
+class _ListenThread(Thread):
+  def __init__(self, socket_path, handler):
+    Thread.__init__(self)
+    self.socket_path = socket_path
+    self.handler = handler
+    # Do not prevent process termination on shutdown.
+    self.daemon = True
+
+  def run(self):
+    _listen(self.socket_path, self.handler)
+
+
+def _handle_command(popen, cmd):
+  '''Handle the given command and return a result, using the given popen to get info
+     about the process.'''
+  try:
+    if cmd == CMD_STATUS:
+      if popen.poll() is None:
+        resp ="%s %s" % (RESP_RUNNING, popen.pid)
+      else:
+        resp ="%s %s" % (RESP_EXITED, popen.returncode)
+    elif cmd == CMD_STOP:
+      if popen.poll() is None:
+          popen.terminate()
+          popen.wait()
+          resp = "%s" % RESP_KILLED
+      else:
+          resp = "%s %s" % (RESP_EXITED, popen.returncode)
+    else:
+      resp = RESP_INVALID
+  except (OSError, IOError) as e:
+    _debug("exception handling command '%s': %s" % (cmd, e))
+    resp = "%s %s" % (RESP_ERROR, e)
+
+  _debug("monitor: command '%s': response '%s'" % (cmd, resp))
+  return resp
+
+# TODO: Customize stdout and stderr
+def fork_and_monitor(id, shell_cmd):
+  '''Fork the given shell command then start a monitor that listens and publishes health.'''
+
+  child_pid = os.fork()
+
+  if child_pid == 0:
+    _debug("monitor: starting: %s" % shell_cmd)
+    args = shlex.split(shell_cmd)
+    error = None
+    try:
+      popen = subprocess.Popen(args)
+    except OSError as e:
+      _die("monitor: Could not start command: %s: %s" % (e, shell_cmd))
+    if popen.poll() is not None:
+      _die("monitor: Could not start command (code %s): %s" % (popen.poll(), shell_cmd))
+
+    # Start listener on fresh Unix domain socket
+    socket_path = SOCKET_PATH_PAT % id
+    _rm_socket_path(socket_path, silent=False)
+    listen_thread = _ListenThread(socket_path, lambda cmd: _handle_command(popen, cmd))
+    listen_thread.start()
+
+    exit_code = popen.wait()
+
+    _debug("monitor: process done (code %s), exiting" % exit_code)
+    # Just for cleanliness, best effort at removing the path when we're done; though if it remains
+    # there we will just remove and re-bind on next startup.
+    _rm_socket_path(socket_path, silent=True)
+    sys.exit(0)
+
+  else:
+    _wait_for_connect(id)
+
+
+def send_command(id, cmd):
+  '''Send a command to the monitor process with the given id via its control socket.'''
+
+  sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+  sock.settimeout(SOCKET_TIMEOUT)
+  try:
+    sock.connect(SOCKET_PATH_PAT % id)
+    _debug("client: connected")
+    sock.sendall(cmd + EOM)
+    data = _recv_msg(sock)
+    if not data:
+      # A rare race or a bug.
+      raise NotRunningException("no data from monitor")
+    _debug("client: %s: %s" % (cmd, data))
+    return data
+  except socket.error, msg:
+    raise NotRunningException("socket error: %s" % msg)
+  finally:
+    sock.close()
+
+def _wait_for_connect(id):
+  _debug("client: wait: checking for connect...")
+  timeout = time.time() + 3.
+  while time.time() < timeout:
+    try:
+      status = send_command(id, CMD_STATUS)
+      _debug("client: wait: connect success")
+      return
+    except NotRunningException:
+      time.sleep(.1)
+  raise IOError("Timeout connecting to monitor")
+
+
+def status(id):
+  '''Return status of the process with the given id.'''
+  try:
+    return send_command(id, CMD_STATUS)
+  except NotRunningException:
+    return RESP_STOPPED
+
+def start(id, shell_cmd, strict=False):
+  '''Start a process, assigning it the given id. If strict is true, return existing process status;
+     otherwise raise exception if process already is running.'''
+  prev_status = status(id)
+  if prev_status == RESP_STOPPED:
+    fork_and_monitor(id, shell_cmd)
+    return send_command(id, CMD_STATUS)
+  else:
+    if strict:
+      raise AlreadyRunningException("Process already running (%s)" % prev_status)
+    else:
+      return prev_status
+
+def stop(id, strict=False):
+  '''Stop the command with the given id. If strict is true, raise exception if process already is stopped.'''
+  try:
+    return send_command(id, CMD_STOP)
+  except NotRunningException as e:
+    if strict:
+      raise
+    else:
+      return RESP_STOPPED
+
+
+def _call_to_string(fn, *args, **kwargs):
+  try:
+    return "'%s'" % fn(*args, **kwargs)
+  except StateException as e:
+    return "! %s" % repr(e)
+
+def _test_call(fn, *args, **kwargs):
+  call_str = "%s(%s)" % (fn.__name__, ", ".join([repr(p) for p in args] + ["%s=%s" % (k, repr(v)) for (k, v) in kwargs.items()]))
+  print(">> %s" % call_str)
+  print("<< %s" % _call_to_string(fn, *args, **kwargs))
+
+def _test1():
+  _test_call(status, "id1")
+  _test_call(start, "id1", "sleep 20")
+  time.sleep(2)
+  _test_call(start, "id1", "sleep 20")
+  _test_call(start, "id1", "sleep 20", strict=True)
+  time.sleep(2)
+  _test_call(start, "id1", "sleep 20")
+  time.sleep(2)
+  _test_call(stop, "id1")
+  _test_call(stop, "id1")
+
+def _test2():
+  _test_call(status, "id2")
+  _test_call(start, "id2", "sleep 3")
+  time.sleep(4)
+  _test_call(start, "id2", "sleep 3")
+  time.sleep(4)
+  _test_call(stop, "id2")
+  _test_call(stop, "id2", strict=True)
+
+if __name__ == '__main__':
+  _test1()
+  _test2()
+
+
+# TODO:
+# - command line
+# - kill -15 followed by kill -9 if no response; custom kill signals
+# - stderr, stdout, and stdin control
+# - proper tests, in separate file
+# - more testing on Mac+Linux
