@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
 r'''
-A simple tool to start, stop, and check status of a process. Intended to be an
-extremely simple alternative to full-featured tools like upstart or monit, more
-suitable for use in build systems, test harnesses, etc.
-
-Author: jlevy
+Procdog is a simple tool to start, stop, and check status of a process. It is
+intended to be an extremely simple alternative to full-featured tools like
+upstart or monit that is trivial to install on any platform and suitable for
+use in build systems, test harnesses, etc.
 '''
+
+# Author: Joshua Levy
+# Created: 2015-03-14
 
 from __future__ import print_function
 import socket, sys, os, time, shlex
@@ -19,7 +21,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -283,7 +285,7 @@ def stop(id, strict=False):
 
 
 def main():
-  parser = ArgumentParser(description=DESCRIPTION)
+  parser = ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
   parser.add_argument("control_cmd", help="command", choices=["start", "stop", "status"])
   parser.add_argument("id", help="unique identifier for this process")
   parser.add_argument("--command", help="with start: full command to start process, with all arguments, in shell syntax")
