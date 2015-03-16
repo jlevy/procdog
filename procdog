@@ -11,13 +11,16 @@ Author: jlevy
 from __future__ import print_function
 import socket, sys, os, time, shlex
 from threading import Thread
+from argparse import ArgumentParser
 # The subprocess module has known threading issues, so prefer subprocess32.
 try:
   import subprocess32 as subprocess
-except:
+except ImportError:
   import subprocess
 
 NAME = "procdog"
+VERSION = "0.0.1"
+DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
 
@@ -32,16 +35,18 @@ RESP_INVALID = "invalid"
 RESP_ERROR = "error"
 
 EOM = "\n"
+
 SOCKET_TIMEOUT = 3
 
-DEBUG = True
+DEBUG = False
 
 def _debug(msg):
+  global DEBUG
   if DEBUG:
     print("%s: %s" % (NAME, msg), file=sys.stderr)
 
 def _die(msg):
-  print("%s: error: %s" % msg, file=sys.stderr)
+  print("%s: error: %s" % (NAME, msg), file=sys.stderr)
   sys.exit(1)
 
 
@@ -50,6 +55,8 @@ class StateException(Exception):
 class NotRunningException(StateException):
     pass
 class AlreadyRunningException(StateException):
+    pass
+class OtherException(StateException):
     pass
 
 
@@ -107,34 +114,44 @@ class _ListenThread(Thread):
   def run(self):
     _listen(self.socket_path, self.handler)
 
+def _resp_str(code, pid=None, returncode=None, error=None):
+  if error:
+    return "%s: %s" % (code, error)
+  out = [code]
+  if pid:
+    out.append("pid=%s" % pid)
+  if returncode:
+    out.append("code=%s" % returncode)
+  return ", ".join(out)
 
 def _handle_command(popen, cmd):
   '''Handle the given command and return a result, using the given popen to get info
      about the process.'''
   try:
-    if cmd == CMD_STATUS:
+    # Treat an empty command like a status command for convenience. This way you can cat the
+    # socket and see status.
+    if cmd == "" or cmd == CMD_STATUS:
       if popen.poll() is None:
-        resp ="%s %s" % (RESP_RUNNING, popen.pid)
+        resp = _resp_str(RESP_RUNNING, pid=popen.pid)
       else:
-        resp ="%s %s" % (RESP_EXITED, popen.returncode)
+        resp = _resp_str(RESP_EXITED, returncode=popen.returncode)
     elif cmd == CMD_STOP:
       if popen.poll() is None:
           popen.terminate()
           popen.wait()
-          resp = "%s" % RESP_KILLED
+          resp = _resp_str(RESP_KILLED)
       else:
-          resp = "%s %s" % (RESP_EXITED, popen.returncode)
+          resp = _resp_str(RESP_EXITED, returncode=popen.returncode)
     else:
-      resp = RESP_INVALID
+      resp = _resp_str(RESP_INVALID)
   except (OSError, IOError) as e:
     _debug("exception handling command '%s': %s" % (cmd, e))
-    resp = "%s %s" % (RESP_ERROR, e)
+    resp = _resp_str(RESP_ERROR, error=e)
 
   _debug("monitor: command '%s': response '%s'" % (cmd, resp))
   return resp
 
-# TODO: Customize stdout and stderr
-def fork_and_monitor(id, shell_cmd):
+def fork_and_monitor(id, shell_cmd, options=None):
   '''Fork the given shell command then start a monitor that listens and publishes health.'''
 
   child_pid = os.fork()
@@ -142,23 +159,49 @@ def fork_and_monitor(id, shell_cmd):
   if child_pid == 0:
     _debug("monitor: starting: %s" % shell_cmd)
     args = shlex.split(shell_cmd)
+    popen = None
     error = None
+
+    # Open file descriptors for stdin/stdout/stderr if needed.
+    if options:
+      write_mode = 'a' if options.append else 'w'
+      fin = None
+      fout = None
+      ferr = None
+      if options.stdin: fin = open(options.stdin, 'r')
+      if options.stdout: fout = open(options.stdout, write_mode)
+      if options.stderr:
+        if options.stderr != options.stdout: ferr = open(options.stderr, write_mode)
+        else: ferr = fout
+
+    # Start process, tracking any immediate errors.
     try:
-      popen = subprocess.Popen(args)
+      popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
     except OSError as e:
-      _die("monitor: Could not start command: %s: %s" % (e, shell_cmd))
-    if popen.poll() is not None:
-      _die("monitor: Could not start command (code %s): %s" % (popen.poll(), shell_cmd))
+      error = "Failed to start: %s: %s" % (e, shell_cmd)
+      _debug("monitor: %s" % error)
+    if popen and popen.poll() is not None:
+      error = "Failure starting (code %s): %s" % (popen.poll(), shell_cmd)
+      _debug("monitor: %s" % error)
 
     # Start listener on fresh Unix domain socket
     socket_path = SOCKET_PATH_PAT % id
     _rm_socket_path(socket_path, silent=False)
-    listen_thread = _ListenThread(socket_path, lambda cmd: _handle_command(popen, cmd))
+
+    # If there was an error starting the process, communicate that to original client.
+    if popen:
+      handler = lambda cmd: _handle_command(popen, cmd)
+    else:
+      handler = lambda cmd: _resp_str(RESP_ERROR, error=error)
+
+    listen_thread = _ListenThread(socket_path, handler)
     listen_thread.start()
 
-    exit_code = popen.wait()
+    if popen:
+      exit_code = popen.wait()
+      _debug("monitor: process done (code %s), exiting" % exit_code)
 
-    _debug("monitor: process done (code %s), exiting" % exit_code)
+    time.sleep(options.linger)
     # Just for cleanliness, best effort at removing the path when we're done; though if it remains
     # there we will just remove and re-bind on next startup.
     _rm_socket_path(socket_path, silent=True)
@@ -190,7 +233,7 @@ def send_command(id, cmd):
 
 def _wait_for_connect(id):
   _debug("client: wait: checking for connect...")
-  timeout = time.time() + 3.
+  timeout = time.time() + SOCKET_TIMEOUT
   while time.time() < timeout:
     try:
       status = send_command(id, CMD_STATUS)
@@ -198,7 +241,7 @@ def _wait_for_connect(id):
       return
     except NotRunningException:
       time.sleep(.1)
-  raise IOError("Timeout connecting to monitor")
+  raise OtherException("Timeout connecting to monitor")
 
 
 def status(id):
@@ -208,12 +251,12 @@ def status(id):
   except NotRunningException:
     return RESP_STOPPED
 
-def start(id, shell_cmd, strict=False):
+def start(id, shell_cmd, strict=False, options=None):
   '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
   prev_status = status(id)
   if prev_status == RESP_STOPPED:
-    fork_and_monitor(id, shell_cmd)
+    fork_and_monitor(id, shell_cmd, options=options)
     return send_command(id, CMD_STATUS)
   else:
     if strict:
@@ -232,46 +275,45 @@ def stop(id, strict=False):
       return RESP_STOPPED
 
 
-def _call_to_string(fn, *args, **kwargs):
+def main():
+  parser = ArgumentParser(description=DESCRIPTION)
+  parser.add_argument("control_cmd", help="command", choices=["start", "stop", "status"])
+  parser.add_argument("id", help="unique identifier for this process")
+  parser.add_argument("--command", help="with start: full command to start process, with all arguments, in shell syntax")
+  parser.add_argument("--stdin", help="with start: filename for standard input")
+  parser.add_argument("--stdout", help="with start: filename for standard input")
+  parser.add_argument("--stderr", help="with start: filename for standard error (may be same as --stdout)")
+  parser.add_argument("--append", help="with start: append to files specified in --stdout and --stderr", action="store_true")
+  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float, default=3.)
+  parser.add_argument("--debug", help="enable debugging output", action="store_true")
+  parser.add_argument("--strict", help="abort with error if asked to start a started process or stop a stopped one", action="store_true")
+  args = parser.parse_args()
+
+  if args.control_cmd == "start" and not args.command:
+    parser.error("Must specify --comand with 'start'")
+  if args.control_cmd != "start" and (args.command or args.stdin or args.stdout or args.stderr or args.append):
+    parser.error("Some options may only be used with 'start'")
+
+  global DEBUG
+  DEBUG = args.debug
+
   try:
-    return "'%s'" % fn(*args, **kwargs)
-  except StateException as e:
-    return "! %s" % repr(e)
-
-def _test_call(fn, *args, **kwargs):
-  call_str = "%s(%s)" % (fn.__name__, ", ".join([repr(p) for p in args] + ["%s=%s" % (k, repr(v)) for (k, v) in kwargs.items()]))
-  print(">> %s" % call_str)
-  print("<< %s" % _call_to_string(fn, *args, **kwargs))
-
-def _test1():
-  _test_call(status, "id1")
-  _test_call(start, "id1", "sleep 20")
-  time.sleep(2)
-  _test_call(start, "id1", "sleep 20")
-  _test_call(start, "id1", "sleep 20", strict=True)
-  time.sleep(2)
-  _test_call(start, "id1", "sleep 20")
-  time.sleep(2)
-  _test_call(stop, "id1")
-  _test_call(stop, "id1")
-
-def _test2():
-  _test_call(status, "id2")
-  _test_call(start, "id2", "sleep 3")
-  time.sleep(4)
-  _test_call(start, "id2", "sleep 3")
-  time.sleep(4)
-  _test_call(stop, "id2")
-  _test_call(stop, "id2", strict=True)
+    if args.control_cmd == "start":
+      result = start(args.id, args.command, strict=args.strict, options=args)
+    elif args.control_cmd == "stop":
+      result = stop(args.id, strict=args.strict)
+    elif args.control_cmd == "status":
+      result = status(args.id)
+    print(result)
+  except NotRunningException as e:
+    _die("process '%s' is not running" % args.id)
+  except AlreadyRunningException as e:
+    _die("process '%s' is already running" % args.id)
 
 if __name__ == '__main__':
-  _test1()
-  _test2()
-
+  main()
 
 # TODO:
-# - command line
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - stderr, stdout, and stdin control
 # - proper tests, in separate file
 # - more testing on Mac+Linux
