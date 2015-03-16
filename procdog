@@ -19,7 +19,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -43,11 +43,11 @@ DEBUG = False
 def _debug(msg):
   global DEBUG
   if DEBUG:
-    print("%s: %s" % (NAME, msg), file=sys.stderr)
+    print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
 
-def _die(msg):
+def _die(msg, code=1):
   print("%s: error: %s" % (NAME, msg), file=sys.stderr)
-  sys.exit(1)
+  sys.exit(code)
 
 
 class StateException(Exception):
@@ -116,13 +116,19 @@ class _ListenThread(Thread):
 
 def _resp_str(code, pid=None, returncode=None, error=None):
   if error:
-    return "%s: %s" % (code, error)
+    return "%s: %s" % (RESP_ERROR, error)
   out = [code]
-  if pid:
+  if pid is not None:
     out.append("pid=%s" % pid)
-  if returncode:
+  if returncode is not None:
     out.append("code=%s" % returncode)
   return ", ".join(out)
+
+def _resp_parse(str):
+  if str.startswith(RESP_ERROR):
+    return str.split(": ")
+  else:
+    return str.split(", ")
 
 def _handle_command(popen, cmd):
   '''Handle the given command and return a result, using the given popen to get info
@@ -255,7 +261,8 @@ def start(id, shell_cmd, strict=False, options=None):
   '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
   prev_status = status(id)
-  if prev_status == RESP_STOPPED:
+  prev_code = _resp_parse(prev_status)[0]
+  if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
     fork_and_monitor(id, shell_cmd, options=options)
     return send_command(id, CMD_STATUS)
   else:
@@ -305,10 +312,10 @@ def main():
     elif args.control_cmd == "status":
       result = status(args.id)
     print(result)
-  except NotRunningException as e:
-    _die("process '%s' is not running" % args.id)
   except AlreadyRunningException as e:
-    _die("process '%s' is already running" % args.id)
+    _die("process '%s' is already running" % args.id, code=2)
+  except NotRunningException as e:
+    _die("process '%s' is not running" % args.id, code=3)
 
 if __name__ == '__main__':
   main()
