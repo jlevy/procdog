@@ -7,46 +7,56 @@ Python 2.7.9
 procdog status long
 stopped
 
-procdog start long --command "sleep 5"
+procdog start long --command "sleep 5" --health-command "true"
 procdog: debug: client: wait: checking for connect...
 procdog: debug: monitor: starting: sleep 5
 procdog: debug: monitor: listening on /var/tmp/procdog.long.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
-procdog: debug: client: status: running, pid=_PID_
+procdog: debug: monitor: running health check: command: true
+procdog: debug: monitor: health check result: 0
+procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
-procdog: debug: client: status: running, pid=_PID_
-running, pid=_PID_
+procdog: debug: monitor: running health check: command: true
+procdog: debug: monitor: health check result: 0
+procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: debug: client: status: running, health=0, pid=_PID_
+running, health=0, pid=_PID_
 sleep 2
 
 procdog status long
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
-procdog: debug: client: status: running, pid=_PID_
-running, pid=_PID_
+procdog: debug: monitor: running health check: command: true
+procdog: debug: monitor: health check result: 0
+procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: debug: client: status: running, health=0, pid=_PID_
+running, health=0, pid=_PID_
 
-procdog start long --command "sleep 5"
+procdog start long --command "sleep 5" --health-command "true"
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
-procdog: debug: client: status: running, pid=_PID_
-running, pid=_PID_
+procdog: debug: monitor: running health check: command: true
+procdog: debug: monitor: health check result: 0
+procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: debug: client: status: running, health=0, pid=_PID_
+running, health=0, pid=_PID_
 
-procdog start long --command "sleep 5" --strict || expect_error
+procdog start long --command "sleep 5" --health-command "true" --strict || expect_error
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
-procdog: debug: client: status: running, pid=_PID_
+procdog: debug: monitor: running health check: command: true
+procdog: debug: monitor: health check result: 0
+procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: error: process 'long' is already running
 (got expected error: status 2)
 
@@ -54,8 +64,8 @@ procdog stop long
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exitingprocdog: debug: monitor: command 'stop': response 'killed, signal=15'
-
+procdog: debug: monitor: process done (code -15), exiting
+procdog: debug: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 

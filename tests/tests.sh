@@ -28,14 +28,14 @@ python -V
 # Start, stop, and status on a long-lived process.
 procdog status long
 
-procdog start long --command "sleep 5"
+procdog start long --command "sleep 5" --health-command "true"
 sleep 2
 
 procdog status long
 
-procdog start long --command "sleep 5"
+procdog start long --command "sleep 5" --health-command "true"
 
-procdog start long --command "sleep 5" --strict || expect_error
+procdog start long --command "sleep 5" --health-command "true" --strict || expect_error
 
 procdog stop long
 

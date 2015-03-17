@@ -13,7 +13,7 @@ use in build systems, test harnesses, etc.
 from __future__ import print_function
 import socket, sys, os, time, shlex
 from datetime import datetime
-from threading import Thread
+from threading import Thread, Lock
 from argparse import ArgumentParser
 # The subprocess module has known threading issues, so prefer subprocess32.
 try:
@@ -22,7 +22,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -43,12 +43,16 @@ SOCKET_TIMEOUT = 3
 
 DEBUG = False
 
-UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
+_UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
+
+_LOG_LOCK = Lock()
 
 def _debug(msg):
   global DEBUG
   if DEBUG:
-    print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
+    # Lock is only local to process, but still helps serialize multiple monitor thread logs.
+    with _LOG_LOCK:
+      print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
 
 def _die(msg, code=1):
   print("%s: error: %s" % (NAME, msg), file=sys.stderr)
@@ -122,7 +126,7 @@ class _ListenThread(Thread):
 def _resp_encode(code, error=None, **kwargs):
   if error:
     return "%s: %s" % (RESP_ERROR, error)
-  out = [code] + ["%s=%s" % (k, v) for (k, v) in kwargs.items()]
+  out = [code] + ["%s=%s" % (k, v) for (k, v) in kwargs.items() if v is not None]
   return ", ".join(out)
 
 def _resp_decode(str):
@@ -131,17 +135,27 @@ def _resp_decode(str):
   else:
     return str.split(", ")
 
-def _handle_command(popen, cmd):
+
+# Workarounds for lack of Python 2 subprocess /dev/null support
+_NULL_INPUT = open(os.devnull, "r")
+_NULL_OUTPUT = open(os.devnull, "w")
+
+def _handle_command(cmd, popen, health_cmd):
   '''Handle the given command and return a result, using the given popen to get info
      about the process.'''
   try:
     # Treat an empty command like a status command for convenience. This way you can cat the
     # socket and see status.
     if cmd == "" or cmd == CMD_STATUS:
+      health = None
+      if health_cmd:
+        _debug("monitor: running health check: command: %s" % health_cmd)
+        health = subprocess.call(health_cmd, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
+        _debug("monitor: health check result: %s" % health)
       if popen.poll() is None:
-        resp = _resp_encode(RESP_RUNNING, pid=popen.pid)
+        resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
       else:
-        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode)
+        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode, health=health)
     elif cmd == CMD_STOP:
       if popen.poll() is None:
           # TODO: Handle additional signals besides 15
@@ -162,7 +176,7 @@ def _handle_command(popen, cmd):
 def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
   f = open(filename, write_mode)
   if write_header:
-    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, UTC_TIMESTAMP, id, shell_cmd))
+    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, _UTC_TIMESTAMP, id, shell_cmd))
     f.flush()
   return f
 
@@ -210,7 +224,7 @@ def fork_and_monitor(id, shell_cmd, options=None):
 
     # If there was an error starting the process, communicate that to original client.
     if popen:
-      handler = lambda cmd: _handle_command(popen, cmd)
+      handler = lambda cmd: _handle_command(cmd, popen, options.health_command)
     else:
       handler = lambda cmd: _resp_encode(RESP_ERROR, error=error)
 
@@ -300,12 +314,13 @@ def main():
   parser = ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
   parser.add_argument("control_cmd", help="command", choices=["start", "stop", "status"])
   parser.add_argument("id", help="unique identifier for this process")
-  parser.add_argument("--command", help="with start: full command to start process, with all arguments, in shell syntax")
+  parser.add_argument("-c", "--command", help="with start: full command to start process, with all arguments, in shell syntax")
+  parser.add_argument("--health-command", help="with start: full command to perform health check")
   parser.add_argument("--stdin", help="with start: filename for standard input")
   parser.add_argument("--stdout", help="with start: filename for standard input")
   parser.add_argument("--stderr", help="with start: filename for standard error (may be same as --stdout)")
   parser.add_argument("--append", help="with start: append to files specified in --stdout and --stderr", action="store_true")
-  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float, default=3.)
+  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code (default 3)", type=float, default=3.)
   parser.add_argument("--debug", help="enable debugging output", action="store_true")
   parser.add_argument("--strict", help="abort with error if asked to start a started process or stop a stopped one", action="store_true")
   args = parser.parse_args()
@@ -338,3 +353,4 @@ if __name__ == '__main__':
 # - custom health checks
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - more testing on Mac+Linux
+# - retry policies to rerun if process dies
