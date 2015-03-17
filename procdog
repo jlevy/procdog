@@ -22,20 +22,27 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
 
+CMD_START = "start"  # Not a command sent to monitor.
 CMD_STATUS = "status"
+CMD_WAIT = "wait"
 CMD_STOP = "stop"
 
-RESP_STOPPED = "stopped"
+CMD_LIST = [CMD_START, CMD_STATUS, CMD_WAIT, CMD_STOP]
+
+RESP_STOPPED = "stopped"  # Not a command returned from monitor.
 RESP_RUNNING = "running"
 RESP_KILLED = "killed"
 RESP_EXITED = "exited"
 RESP_INVALID = "invalid"
 RESP_ERROR = "error"
+
+# Return code expected for a valid health check.
+HEALTHY_CODE = 0
 
 EOM = "\n"
 
@@ -112,6 +119,8 @@ def _listen(socket_path, handler):
     finally:
       connection.close()
 
+# We use a single listening thread (not a pool) since this is thread is only to monitor a single
+# process. All request handling, including the wait with health check, should happen serially.
 class _ListenThread(Thread):
   def __init__(self, socket_path, handler):
     Thread.__init__(self)
@@ -123,10 +132,11 @@ class _ListenThread(Thread):
   def run(self):
     _listen(self.socket_path, self.handler)
 
+
 def _resp_encode(code, error=None, **kwargs):
   if error:
     return "%s: %s" % (RESP_ERROR, error)
-  out = [code] + ["%s=%s" % (k, v) for (k, v) in kwargs.items() if v is not None]
+  out = [code] + ["%s=%s" % (k, v) for (k, v) in sorted(kwargs.items()) if v is not None]
   return ", ".join(out)
 
 def _resp_decode(str):
@@ -135,23 +145,56 @@ def _resp_decode(str):
   else:
     return str.split(", ")
 
+# TODO Encapsulate encoding/decoding as a proper class.
+def _resp_is_unhealthy(str):
+  bits = _resp_decode(str)
+  return bits[0] == RESP_RUNNING and "health=0" not in bits
+
 
 # Workarounds for lack of Python 2 subprocess /dev/null support
 _NULL_INPUT = open(os.devnull, "r")
 _NULL_OUTPUT = open(os.devnull, "w")
 
-def _handle_command(cmd, popen, health_cmd):
+def _health_check(health_cmd, count=None):
+  _debug("monitor: running health check: command: %s" % health_cmd)
+  health = subprocess.call(health_cmd, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
+  _debug("monitor: health check%s: result: %s" % ("" if count is None else " %s" % count, health))
+  return health
+
+def _wait_for_health(popen, health_cmd, health_count, health_delay):
+  '''Wait for the given process to exit, the health command to return true, or the total health
+     checks to expire. Return final health code, or None if process already exited.'''
+  health = None
+  for count in range(0, health_count):
+    if popen.poll() is not None:
+      return None
+    health = _health_check(health_cmd, count)
+    if health == HEALTHY_CODE:
+      return health
+    time.sleep(health_delay)
+  return health
+
+
+def _handle_command(cmd, popen, options):
   '''Handle the given command and return a result, using the given popen to get info
      about the process.'''
   try:
+    health_command = options.health_command
+    health_count = options.health_count
+    health_delay = options.health_delay
     # Treat an empty command like a status command for convenience. This way you can cat the
     # socket and see status.
     if cmd == "" or cmd == CMD_STATUS:
       health = None
-      if health_cmd:
-        _debug("monitor: running health check: command: %s" % health_cmd)
-        health = subprocess.call(health_cmd, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
-        _debug("monitor: health check result: %s" % health)
+      if health_command:
+        health = _health_check(health_command)
+      if popen.poll() is None:
+        resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
+      else:
+        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode, health=health)
+    elif cmd == CMD_WAIT:
+      if health_command:
+        health = _wait_for_health(popen, health_command, health_count, health_delay)
       if popen.poll() is None:
         resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
       else:
@@ -180,7 +223,7 @@ def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
     f.flush()
   return f
 
-def fork_and_monitor(id, shell_cmd, options=None):
+def fork_and_monitor(id, shell_cmd, options):
   '''Fork the given shell command then start a monitor that listens and publishes health.'''
 
   child_pid = os.fork()
@@ -193,20 +236,19 @@ def fork_and_monitor(id, shell_cmd, options=None):
 
     # Open file descriptors for stdin/stdout/stderr if needed.
     # TODO: Consider closing of these on process exit.
-    if options:
-      write_mode = 'a' if options.append else 'w'
-      fin = None
-      fout = None
-      ferr = None
-      if options.stdin:
-        fin = open(options.stdin, 'r')
-      if options.stdout:
-        fout = _open_logfile(options.stdout, write_mode, id, shell_cmd, write_header=True)
-      if options.stderr:
-        if options.stderr == options.stdout:
-          ferr = fout
-        else:
-          ferr = _open_logfile(options.stderr, write_mode, id, shell_cmd, write_header=True)
+    write_mode = 'a' if options.append else 'w'
+    fin = None
+    fout = None
+    ferr = None
+    if options.stdin:
+      fin = open(options.stdin, 'r')
+    if options.stdout:
+      fout = _open_logfile(options.stdout, write_mode, id, shell_cmd, write_header=True)
+    if options.stderr:
+      if options.stderr == options.stdout:
+        ferr = fout
+      else:
+        ferr = _open_logfile(options.stderr, write_mode, id, shell_cmd, write_header=True)
 
     # Start process, tracking any immediate errors.
     try:
@@ -224,7 +266,7 @@ def fork_and_monitor(id, shell_cmd, options=None):
 
     # If there was an error starting the process, communicate that to original client.
     if popen:
-      handler = lambda cmd: _handle_command(cmd, popen, options.health_command)
+      handler = lambda cmd: _handle_command(cmd, popen, options)
     else:
       handler = lambda cmd: _resp_encode(RESP_ERROR, error=error)
 
@@ -249,9 +291,11 @@ def send_command(id, cmd):
   '''Send a command to the monitor process with the given id via its control socket.'''
 
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-  sock.settimeout(SOCKET_TIMEOUT)
   try:
+    # Set a short timeout on connect, in case process not running. Once we connect, disable the timeout.
+    sock.settimeout(SOCKET_TIMEOUT)
     sock.connect(SOCKET_PATH_PAT % id)
+    sock.settimeout(None)
     _debug("client: connected")
     sock.sendall(cmd + EOM)
     data = _recv_msg(sock)
@@ -278,6 +322,31 @@ def _wait_for_connect(id):
   raise OtherException("Timeout connecting to monitor")
 
 
+def start(id, shell_cmd, options, strict=False):
+  '''Start a process, assigning it the given id. If strict is true, return existing process status;
+     otherwise raise exception if process already is running.'''
+  prev_status = status(id)
+  prev_code = _resp_decode(prev_status)[0]
+  if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
+    fork_and_monitor(id, shell_cmd, options)
+    if options.ensure_healthy:
+      _debug("monitor: ensure_healthy is set, waiting for health")
+      resp = send_command(id, CMD_WAIT)
+      # TODO: Replace with proper response parsing.
+      if _resp_is_unhealthy(resp):
+        _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
+        resp = send_command(id, CMD_STOP)
+      else:
+        _debug("monitor: ensure_healthy is set and process is still healthy (%s)" % resp)
+    else:
+      resp = send_command(id, CMD_STATUS)
+  else:
+    if strict:
+      raise AlreadyRunningException("Process already running (%s)" % prev_status)
+    else:
+      resp = prev_status
+  return resp
+
 def status(id):
   '''Return status of the process with the given id.'''
   try:
@@ -285,19 +354,12 @@ def status(id):
   except NotRunningException:
     return RESP_STOPPED
 
-def start(id, shell_cmd, strict=False, options=None):
-  '''Start a process, assigning it the given id. If strict is true, return existing process status;
-     otherwise raise exception if process already is running.'''
-  prev_status = status(id)
-  prev_code = _resp_decode(prev_status)[0]
-  if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
-    fork_and_monitor(id, shell_cmd, options=options)
-    return send_command(id, CMD_STATUS)
-  else:
-    if strict:
-      raise AlreadyRunningException("Process already running (%s)" % prev_status)
-    else:
-      return prev_status
+def wait(id):
+  '''Same as status, but if process is running, try to wait until it is healthy.'''
+  try:
+    return send_command(id, CMD_WAIT)
+  except NotRunningException:
+    return RESP_STOPPED
 
 def stop(id, strict=False):
   '''Stop the command with the given id. If strict is true, raise exception if process already is stopped.'''
@@ -312,15 +374,18 @@ def stop(id, strict=False):
 
 def main():
   parser = ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
-  parser.add_argument("control_cmd", help="command", choices=["start", "stop", "status"])
+  parser.add_argument("control_cmd", help="command", choices=CMD_LIST)
   parser.add_argument("id", help="unique identifier for this process")
   parser.add_argument("-c", "--command", help="with start: full command to start process, with all arguments, in shell syntax")
   parser.add_argument("--health-command", help="with start: full command to perform health check")
+  parser.add_argument("--health-count", help="with start: max tries for health check", type=int, default=5)
+  parser.add_argument("--health-delay", help="with start: delays for health check", type=float, default=1.)
+  parser.add_argument("--ensure-healthy", help="with start: wait for health, then shut down if not healhty", action="store_true")
   parser.add_argument("--stdin", help="with start: filename for standard input")
   parser.add_argument("--stdout", help="with start: filename for standard input")
   parser.add_argument("--stderr", help="with start: filename for standard error (may be same as --stdout)")
   parser.add_argument("--append", help="with start: append to files specified in --stdout and --stderr", action="store_true")
-  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code (default 3)", type=float, default=3.)
+  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float, default=3.)
   parser.add_argument("--debug", help="enable debugging output", action="store_true")
   parser.add_argument("--strict", help="abort with error if asked to start a started process or stop a stopped one", action="store_true")
   args = parser.parse_args()
@@ -334,12 +399,14 @@ def main():
   DEBUG = args.debug
 
   try:
-    if args.control_cmd == "start":
-      result = start(args.id, args.command, strict=args.strict, options=args)
-    elif args.control_cmd == "stop":
+    if args.control_cmd == CMD_START:
+      result = start(args.id, args.command, options=args, strict=args.strict)
+    elif args.control_cmd == CMD_STOP:
       result = stop(args.id, strict=args.strict)
-    elif args.control_cmd == "status":
+    elif args.control_cmd == CMD_STATUS:
       result = status(args.id)
+    elif args.control_cmd == CMD_WAIT:
+      result = wait(args.id)
     print(result)
   except AlreadyRunningException as e:
     _die("process '%s' is already running" % args.id, code=2)
@@ -350,7 +417,9 @@ if __name__ == '__main__':
   main()
 
 # TODO:
-# - custom health checks
+# - return health code as exit code on wait
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - more testing on Mac+Linux
+# - config file
+# - list command to show status of all running processes
 # - retry policies to rerun if process dies
+# - more testing on Mac+Linux

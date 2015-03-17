@@ -28,10 +28,14 @@ python -V
 # Start, stop, and status on a long-lived process.
 procdog status long
 
+procdog wait long
+
 procdog start long --command "sleep 5" --health-command "true"
 sleep 2
 
 procdog status long
+
+procdog wait long
 
 procdog start long --command "sleep 5" --health-command "true"
 
@@ -44,7 +48,7 @@ procdog stop long
 procdog stop long --strict || expect_error
 sleep 4
 
-# start, stop, and status on a short-lived process
+# Start, stop, and status on a short-lived process.
 procdog status short
 
 procdog start short --command "sleep 1"
@@ -57,6 +61,22 @@ procdog start short --command "sleep 1" --strict
 procdog stop long
 
 procdog stop long --strict || expect_error
+
+# A long-lived unhealthy process.
+procdog wait unhealthy1
+
+procdog start unhealthy1 --command "sleep 100" --health-command "false"
+
+procdog wait unhealthy1
+
+procdog stop unhealthy1
+
+# Test --ensure-healthy.
+procdog start ensure1 --command "sleep 100" --health-command "true" --ensure-healthy
+
+procdog stop ensure1
+
+procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy
 
 # Short-lived processes and error conditions.
 procdog start err1 --command "no-such-command"
@@ -76,4 +96,3 @@ procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.ou
 cat tmp.stdin.out2
 cat tmp.stdout.out2
 
-sleep 1
