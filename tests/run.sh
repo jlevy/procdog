@@ -13,6 +13,7 @@ $dir/tests.sh >$full_log 2>&1
 # Use basic REs (* not +) to avoid sed flag differences between MacOS and Linux.
 cat $full_log \
   | sed 's/pid=[0-9]*/pid=_PID_/g' \
+  | sed 's/[0-9.:T-]*Z/_TIMESTAMP_/g' \
   > $clean_log
 
 echo "Tests done."

@@ -1,9 +1,9 @@
 
 # Python version we're using to run tests.
 python -V
-Python 2.7.8
+Python 2.7.9
 
-# start, stop, and status on a long-lived process
+# Start, stop, and status on a long-lived process.
 procdog status long
 stopped
 
@@ -54,26 +54,26 @@ procdog stop long
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed'
-procdog: debug: client: stop: killed
-killed
+procdog: debug: monitor: process done (code -15), exitingprocdog: debug: monitor: command 'stop': response 'killed, signal=15'
+
+procdog: debug: client: stop: killed, signal=15
+killed, signal=15
 
 procdog stop long
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: command 'stop': response 'exited, code=0'
-procdog: debug: client: stop: exited, code=0
-exited, code=0
+procdog: debug: monitor: command 'stop': response 'exited, returncode=-15'
+procdog: debug: client: stop: exited, returncode=-15
+exited, returncode=-15
 
 procdog stop long --strict || expect_error
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: command 'stop': response 'exited, code=0'
-procdog: debug: client: stop: exited, code=0
-exited, code=0
+procdog: debug: monitor: command 'stop': response 'exited, returncode=-15'
+procdog: debug: client: stop: exited, returncode=-15
+exited, returncode=-15
 sleep 4
 
 # start, stop, and status on a short-lived process
@@ -103,31 +103,31 @@ procdog status short
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=0'
-procdog: debug: client: status: exited, code=0
-exited, code=0
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
+exited, returncode=0
 
 procdog start short --command "sleep 1" --strict
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=0'
-procdog: debug: client: status: exited, code=0
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: checking for connect...
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
-procdog: debug: monitor: starting: sleep 1
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=0'
-procdog: debug: client: status: exited, code=0
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: monitor: starting: sleep 1
+procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=0'
-procdog: debug: client: status: exited, code=0
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
 procdog: debug: monitor: listening on /var/tmp/procdog.short.sock
-exited, code=0
+exited, returncode=0
 
 procdog stop long
 stopped
@@ -136,22 +136,22 @@ procdog stop long --strict || expect_error
 procdog: error: process 'long' is not running
 (got expected error: status 3)
 
-# short-lived processes and error conditions
+# Short-lived processes and error conditions.
 procdog start err1 --command "no-such-command"
 procdog: debug: client: wait: checking for connect...
 procdog: debug: monitor: starting: no-such-command
-procdog: debug: monitor: Failed to start: [Errno 2] No such file or directory: no-such-command
+procdog: debug: monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 procdog: debug: monitor: listening on /var/tmp/procdog.err1.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: client: status: error: Failed to start: [Errno 2] No such file or directory: no-such-command
+procdog: debug: client: status: error: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: client: status: error: Failed to start: [Errno 2] No such file or directory: no-such-command
-error: Failed to start: [Errno 2] No such file or directory: no-such-command
+procdog: debug: client: status: error: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
+error: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 
 procdog start err2 --command "false"
 procdog: debug: client: wait: checking for connect...
@@ -161,14 +161,66 @@ procdog: debug: monitor: process done (code 1), exiting
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=1'
-procdog: debug: client: status: exited, code=1
+procdog: debug: monitor: command 'status': response 'exited, returncode=1'
+procdog: debug: client: status: exited, returncode=1
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, code=1'
-procdog: debug: client: status: exited, code=1
-exited, code=1
+procdog: debug: monitor: command 'status': response 'exited, returncode=1'
+procdog: debug: client: status: exited, returncode=1
+exited, returncode=1
+
+# Redirect stdout and stderr.
+rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
+procdog start out1 --command "echo hello" --stdout tmp.stdout.out1 --stderr tmp.stderr.out1
+procdog: debug: client: wait: checking for connect...
+procdog: debug: monitor: starting: echo hello
+procdog: debug: monitor: listening on /var/tmp/procdog.out1.sock
+procdog: debug: monitor: process done (code 0), exiting
+procdog: debug: client: connected
+procdog: debug: monitor: listen accept
+procdog: debug: monitor: received command 'status'
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
+procdog: debug: client: wait: connect success
+procdog: debug: client: connected
+procdog: debug: monitor: listen accept
+procdog: debug: monitor: received command 'status'
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
+exited, returncode=0
 sleep 1
 procdog: debug: monitor: process done (code 0), exiting
+cat tmp.stdout.out1
+procdog: _TIMESTAMP_ Starting process 'out1' with command: echo hello
+hello
+cat tmp.stderr.out1
+procdog: _TIMESTAMP_ Starting process 'out1' with command: echo hello
+
+# Read from input and write stderr and stdout to same output.
+echo input > tmp.stdin.out2
+procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2
+procdog: debug: client: wait: checking for connect...
+procdog: debug: monitor: starting: cat
+procdog: debug: monitor: listening on /var/tmp/procdog.out2.sock
+procdog: debug: monitor: process done (code 0), exiting
+procdog: debug: client: connected
+procdog: debug: monitor: listen accept
+procdog: debug: monitor: received command 'status'
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
+procdog: debug: client: wait: connect success
+procdog: debug: client: connected
+procdog: debug: monitor: listen accept
+procdog: debug: monitor: received command 'status'
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: debug: client: status: exited, returncode=0
+exited, returncode=0
+cat tmp.stdin.out2
+input
+cat tmp.stdout.out2
+procdog: _TIMESTAMP_ Starting process 'out2' with command: cat
+input
+
+sleep 1

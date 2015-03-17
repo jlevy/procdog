@@ -25,7 +25,7 @@ set -v
 # Python version we're using to run tests.
 python -V
 
-# start, stop, and status on a long-lived process
+# Start, stop, and status on a long-lived process.
 procdog status long
 
 procdog start long --command "sleep 5"
@@ -58,8 +58,22 @@ procdog stop long
 
 procdog stop long --strict || expect_error
 
-# short-lived processes and error conditions
+# Short-lived processes and error conditions.
 procdog start err1 --command "no-such-command"
 
 procdog start err2 --command "false"
+
+# Redirect stdout and stderr.
+rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
+procdog start out1 --command "echo hello" --stdout tmp.stdout.out1 --stderr tmp.stderr.out1
+sleep 1
+cat tmp.stdout.out1
+cat tmp.stderr.out1
+
+# Read from input and write stderr and stdout to same output.
+echo input > tmp.stdin.out2
+procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2
+cat tmp.stdin.out2
+cat tmp.stdout.out2
+
 sleep 1

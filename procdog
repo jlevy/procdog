@@ -12,6 +12,7 @@ use in build systems, test harnesses, etc.
 
 from __future__ import print_function
 import socket, sys, os, time, shlex
+from datetime import datetime
 from threading import Thread
 from argparse import ArgumentParser
 # The subprocess module has known threading issues, so prefer subprocess32.
@@ -21,7 +22,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.3"
+VERSION = "0.0.4"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -41,6 +42,8 @@ EOM = "\n"
 SOCKET_TIMEOUT = 3
 
 DEBUG = False
+
+UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
 
 def _debug(msg):
   global DEBUG
@@ -116,17 +119,13 @@ class _ListenThread(Thread):
   def run(self):
     _listen(self.socket_path, self.handler)
 
-def _resp_str(code, pid=None, returncode=None, error=None):
+def _resp_encode(code, error=None, **kwargs):
   if error:
     return "%s: %s" % (RESP_ERROR, error)
-  out = [code]
-  if pid is not None:
-    out.append("pid=%s" % pid)
-  if returncode is not None:
-    out.append("code=%s" % returncode)
+  out = [code] + ["%s=%s" % (k, v) for (k, v) in kwargs.items()]
   return ", ".join(out)
 
-def _resp_parse(str):
+def _resp_decode(str):
   if str.startswith(RESP_ERROR):
     return str.split(": ")
   else:
@@ -140,24 +139,32 @@ def _handle_command(popen, cmd):
     # socket and see status.
     if cmd == "" or cmd == CMD_STATUS:
       if popen.poll() is None:
-        resp = _resp_str(RESP_RUNNING, pid=popen.pid)
+        resp = _resp_encode(RESP_RUNNING, pid=popen.pid)
       else:
-        resp = _resp_str(RESP_EXITED, returncode=popen.returncode)
+        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode)
     elif cmd == CMD_STOP:
       if popen.poll() is None:
+          # TODO: Handle additional signals besides 15
           popen.terminate()
           popen.wait()
-          resp = _resp_str(RESP_KILLED)
+          resp = _resp_encode(RESP_KILLED, signal=15)
       else:
-          resp = _resp_str(RESP_EXITED, returncode=popen.returncode)
+          resp = _resp_encode(RESP_EXITED, returncode=popen.returncode)
     else:
-      resp = _resp_str(RESP_INVALID)
+      resp = _resp_encode(RESP_INVALID)
   except (OSError, IOError) as e:
     _debug("exception handling command '%s': %s" % (cmd, e))
-    resp = _resp_str(RESP_ERROR, error=e)
+    resp = _resp_encode(RESP_ERROR, error=e)
 
   _debug("monitor: command '%s': response '%s'" % (cmd, resp))
   return resp
+
+def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
+  f = open(filename, write_mode)
+  if write_header:
+    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, UTC_TIMESTAMP, id, shell_cmd))
+    f.flush()
+  return f
 
 def fork_and_monitor(id, shell_cmd, options=None):
   '''Fork the given shell command then start a monitor that listens and publishes health.'''
@@ -171,16 +178,21 @@ def fork_and_monitor(id, shell_cmd, options=None):
     error = None
 
     # Open file descriptors for stdin/stdout/stderr if needed.
+    # TODO: Consider closing of these on process exit.
     if options:
       write_mode = 'a' if options.append else 'w'
       fin = None
       fout = None
       ferr = None
-      if options.stdin: fin = open(options.stdin, 'r')
-      if options.stdout: fout = open(options.stdout, write_mode)
+      if options.stdin:
+        fin = open(options.stdin, 'r')
+      if options.stdout:
+        fout = _open_logfile(options.stdout, write_mode, id, shell_cmd, write_header=True)
       if options.stderr:
-        if options.stderr != options.stdout: ferr = open(options.stderr, write_mode)
-        else: ferr = fout
+        if options.stderr == options.stdout:
+          ferr = fout
+        else:
+          ferr = _open_logfile(options.stderr, write_mode, id, shell_cmd, write_header=True)
 
     # Start process, tracking any immediate errors.
     try:
@@ -200,7 +212,7 @@ def fork_and_monitor(id, shell_cmd, options=None):
     if popen:
       handler = lambda cmd: _handle_command(popen, cmd)
     else:
-      handler = lambda cmd: _resp_str(RESP_ERROR, error=error)
+      handler = lambda cmd: _resp_encode(RESP_ERROR, error=error)
 
     listen_thread = _ListenThread(socket_path, handler)
     listen_thread.start()
@@ -234,7 +246,7 @@ def send_command(id, cmd):
       raise NotRunningException("no data from monitor")
     _debug("client: %s: %s" % (cmd, data))
     return data
-  except socket.error, msg:
+  except socket.error as msg:
     raise NotRunningException("socket error: %s" % msg)
   finally:
     sock.close()
@@ -263,7 +275,7 @@ def start(id, shell_cmd, strict=False, options=None):
   '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
   prev_status = status(id)
-  prev_code = _resp_parse(prev_status)[0]
+  prev_code = _resp_decode(prev_status)[0]
   if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
     fork_and_monitor(id, shell_cmd, options=options)
     return send_command(id, CMD_STATUS)
@@ -323,6 +335,6 @@ if __name__ == '__main__':
   main()
 
 # TODO:
+# - custom health checks
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - proper tests, in separate file
 # - more testing on Mac+Linux
