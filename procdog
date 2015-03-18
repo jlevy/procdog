@@ -1,17 +1,26 @@
 #!/usr/bin/env python
 
 r'''
-Procdog is a simple tool to start, stop, and check status of a process. It is
-intended to be an extremely simple alternative to full-featured tools like
-upstart or monit that is trivial to install on any platform and suitable for
-use in build systems, test harnesses, etc.
+Procdog is a simple command-line tool to start, stop, and check the health of
+processes.
+
+It is intended to be very simple and easy-to-use alternative to more
+full-featured deployment tools (such as Monit), and to be cross-platform,
+unlike traditional OS-specific tools (such as start-stop-daemon and Upstart),
+for use in development, in build systems and test harnesses, etc.
+
+It operates by starting a small daemon that popen()s and monitors the process.
+The daemon listens and accepts commands on a local Unix domain socket, making
+it possible to check the process is running or terminate it, and to do simple
+health checks. For simplicity, there is a single Procdog daemon for each
+monitored process, so each process is handled compeltely separately.
 '''
 
 # Author: Joshua Levy
 # Created: 2015-03-14
 
 from __future__ import print_function
-import socket, sys, os, time, shlex, ConfigParser, argparse
+import socket, sys, os, time, shlex, ConfigParser, argparse, re
 from collections import namedtuple
 from datetime import datetime
 from threading import Thread, Lock
@@ -22,10 +31,12 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
+
+LOG_PATH_PAT = "/var/tmp/" + NAME + ".%s.log"
 
 CONFIG_FILE = "procdog.cfg"
 CONFIG_DOTFILE = "." + CONFIG_FILE
@@ -59,14 +70,18 @@ _UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
 _NULL_INPUT = open(os.devnull, "r")
 _NULL_OUTPUT = open(os.devnull, "w")
 
+# Lock is only local to process, but still helps serialize multiple monitor thread logs.
 _LOG_LOCK = Lock()
 
 def _debug(msg):
   global DEBUG
   if DEBUG:
-    # Lock is only local to process, but still helps serialize multiple monitor thread logs.
     with _LOG_LOCK:
       print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
+
+def _info(msg):
+  with _LOG_LOCK:
+    print("%s: %s" % (NAME, msg), file=sys.stderr)
 
 def _die(msg, code=1):
   print("%s: error: %s" % (NAME, msg), file=sys.stderr)
@@ -113,7 +128,7 @@ def _listen(socket_path, handler):
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
   sock.bind(socket_path)
   sock.listen(16)
-  _debug("monitor: listening on %s" % socket_path)
+  _info("monitor: listening on %s" % socket_path)
 
   while True:
     connection, client_address = sock.accept()
@@ -156,7 +171,6 @@ def _resp_decode(str):
 def _resp_is_unhealthy(str):
   bits = _resp_decode(str)
   return bits[0] == RESP_RUNNING and "health=0" not in bits
-
 
 
 def _health_check(health_cmd, count=None):
@@ -215,10 +229,10 @@ def _handle_command(cmd, popen, options):
     else:
       resp = _resp_encode(RESP_INVALID)
   except (OSError, IOError) as e:
-    _debug("exception handling command '%s': %s" % (cmd, e))
+    _info("exception handling command '%s': %s" % (cmd, e))
     resp = _resp_encode(RESP_ERROR, error=e)
 
-  _debug("monitor: command '%s': response '%s'" % (cmd, resp))
+  _info("monitor: command '%s': response '%s'" % (cmd, resp))
   return resp
 
 def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
@@ -228,13 +242,60 @@ def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
     f.flush()
   return f
 
-def fork_and_monitor(id, shell_cmd, options):
-  '''Fork the given shell command then start a monitor that listens and publishes health.'''
 
-  child_pid = os.fork()
+def daemonize(home_dir="/", umask=077, do_redirect=True, stdout=None, stderr=None):
+  '''Do a standard double fork to daemonize. Based on portions of
+     http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/www.boxedice.com and
+     https://github.com/serverdensity/python-daemon'''
 
-  if child_pid == 0:
-    _debug("monitor: starting: %s" % shell_cmd)
+  # Do first fork and return control to calling process.
+  try:
+    pid = os.fork()
+    if pid > 0:
+      return False
+  except OSError, e:
+    sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+    sys.exit(1)
+
+  # Decouple from parent environment.
+  os.chdir(home_dir)
+  os.setsid()
+  os.umask(umask)
+
+  # Do second fork.
+  try:
+    pid = os.fork()
+    if pid > 0:
+      sys.exit(0)  # Exit second parent.
+  except OSError, e:
+    sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+    sys.exit(1)
+
+  # Redirect standard file descriptors.
+  if do_redirect:
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    so = file(stdout, 'a+') if stdout else _NULL_OUTPUT.fileno()
+    se = file(stderr, 'a+', 0) if stderr else so
+
+    os.dup2(_NULL_INPUT.fileno(), sys.stdin.fileno())
+    os.dup2(so.fileno(), sys.stdout.fileno())
+    os.dup2(se.fileno(), sys.stderr.fileno())
+
+  # TODO: Change from Python signal handler?
+  return True
+
+def daemonize_and_monitor(id, shell_cmd, options):
+  '''Start a monitor daemon that forks the given shell command, listens, and handles commands via a
+     control socket.'''
+
+  # Deamonize. If we're debugging, keep all debug output on the console.
+  is_daemon = daemonize(home_dir=os.getcwd(), do_redirect=not DEBUG, stdout=LOG_PATH_PAT % id)
+
+  if is_daemon:
+    _info("monitor: %s" % (options,))
+    _info("monitor: starting shell command: %s" % shell_cmd)
     popen = None
     error = None
 
@@ -260,10 +321,10 @@ def fork_and_monitor(id, shell_cmd, options):
       popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
     except OSError as e:
       error = "Failed to start: %s: %s" % (e, shell_cmd)
-      _debug("monitor: %s" % error)
+      _info("monitor: %s" % error)
     if popen and popen.poll() is not None:
       error = "Failure starting (code %s): %s" % (popen.poll(), shell_cmd)
-      _debug("monitor: %s" % error)
+      _info("monitor: %s" % error)
 
     # Start listener on fresh Unix domain socket
     socket_path = SOCKET_PATH_PAT % id
@@ -280,7 +341,7 @@ def fork_and_monitor(id, shell_cmd, options):
 
     if popen:
       exit_code = popen.wait()
-      _debug("monitor: process done (code %s), exiting" % exit_code)
+      _info("monitor: process done (code %s), exiting" % exit_code)
 
     time.sleep(options.linger)
     # Just for cleanliness, best effort at removing the path when we're done; though if it remains
@@ -317,14 +378,16 @@ def send_command(id, cmd):
 def _wait_for_connect(id):
   _debug("client: wait: checking for connect...")
   timeout = time.time() + SOCKET_TIMEOUT
+  exc = None
   while time.time() < timeout:
     try:
       status = send_command(id, CMD_STATUS)
       _debug("client: wait: connect success")
       return
-    except NotRunningException:
+    except NotRunningException as e:
+      exc = e
       time.sleep(.1)
-  raise OtherException("Timeout connecting to monitor")
+  raise OtherException("Timeout connecting to monitor: %s" % exc)
 
 
 def start(id, shell_cmd, options, strict=False):
@@ -333,7 +396,7 @@ def start(id, shell_cmd, options, strict=False):
   prev_status = status(id)
   prev_code = _resp_decode(prev_status)[0]
   if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
-    fork_and_monitor(id, shell_cmd, options)
+    daemonize_and_monitor(id, shell_cmd, options)
     if options.ensure_healthy:
       _debug("monitor: ensure_healthy is set, waiting for health")
       resp = send_command(id, CMD_WAIT)
@@ -468,6 +531,8 @@ def main():
 
     if args.control_cmd == "start" and not options.command:
       parser.error("Must specify --command with 'start'")
+    if not re.compile("^\\w+$").match(args.id):
+      parser.error("Invalid process identifier; must be alphanumeric, with no spaces")
 
     if args.control_cmd == CMD_START:
       result = start(args.id, options.command, options=options, strict=options.strict)

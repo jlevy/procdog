@@ -18,14 +18,15 @@ procdog start long --command "sleep 5" --health-command "true"
 procdog: debug: command-line options: {'command': 'sleep 5', 'health_command': 'true'}
 procdog: debug: final options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 5
-procdog: debug: monitor: listening on /var/tmp/procdog.long.sock
+procdog: monitor: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: sleep 5
+procdog: monitor: listening on /var/tmp/procdog.long.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
@@ -33,7 +34,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 running, health=0, pid=_PID_
 sleep 2
@@ -46,7 +47,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 running, health=0, pid=_PID_
 
@@ -58,7 +59,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'wait'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check 0: result: 0
-procdog: debug: monitor: command 'wait': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'wait': response 'running, health=0, pid=_PID_'
 procdog: debug: client: wait: running, health=0, pid=_PID_
 running, health=0, pid=_PID_
 
@@ -70,7 +71,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 running, health=0, pid=_PID_
 
@@ -82,7 +83,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: error: process 'long' is already running
 (got expected error: status 2)
@@ -93,8 +94,8 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed, signal=15'
+procdog: monitor: process done (code -15), exiting
+procdog: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 
@@ -104,7 +105,7 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: command 'stop': response 'exited, returncode=-15'
+procdog: monitor: command 'stop': response 'exited, returncode=-15'
 procdog: debug: client: stop: exited, returncode=-15
 exited, returncode=-15
 
@@ -114,7 +115,7 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: command 'stop': response 'exited, returncode=-15'
+procdog: monitor: command 'stop': response 'exited, returncode=-15'
 procdog: debug: client: stop: exited, returncode=-15
 exited, returncode=-15
 sleep 4
@@ -129,22 +130,23 @@ procdog start short --command "sleep 1"
 procdog: debug: command-line options: {'command': 'sleep 1'}
 procdog: debug: final options: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 1
-procdog: debug: monitor: listening on /var/tmp/procdog.short.sock
+procdog: monitor: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: sleep 1
+procdog: monitor: listening on /var/tmp/procdog.short.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
+procdog: monitor: command 'status': response 'running, pid=_PID_'
 procdog: debug: client: status: running, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'running, pid=_PID_'
+procdog: monitor: command 'status': response 'running, pid=_PID_'
 procdog: debug: client: status: running, pid=_PID_
 running, pid=_PID_
 sleep 2
-procdog: debug: monitor: process done (code 0), exiting
+procdog: monitor: process done (code 0), exiting
 
 procdog status short
 procdog: debug: command-line options: {}
@@ -152,7 +154,7 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 exited, returncode=0
 
@@ -162,22 +164,23 @@ procdog: debug: final options: Options(command='sleep 1', health_command=None, h
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: checking for connect...
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: starting: sleep 1
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
-procdog: debug: monitor: listening on /var/tmp/procdog.short.sock
+procdog: monitor: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog: monitor: starting shell command: sleep 1
+procdog: monitor: listening on /var/tmp/procdog.short.sock
 exited, returncode=0
 
 procdog stop long
@@ -201,14 +204,15 @@ procdog start unhealthy1 --command "sleep 100" --health-command "false"
 procdog: debug: command-line options: {'command': 'sleep 100', 'health_command': 'false'}
 procdog: debug: final options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 100
-procdog: debug: monitor: listening on /var/tmp/procdog.unhealthy1.sock
+procdog: monitor: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: sleep 100
+procdog: monitor: listening on /var/tmp/procdog.unhealthy1.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check: result: 1
-procdog: debug: monitor: command 'status': response 'running, health=1, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=1, pid=_PID_'
 procdog: debug: client: status: running, health=1, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
@@ -216,7 +220,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check: result: 1
-procdog: debug: monitor: command 'status': response 'running, health=1, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=1, pid=_PID_'
 procdog: debug: client: status: running, health=1, pid=_PID_
 running, health=1, pid=_PID_
 
@@ -228,7 +232,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'wait'
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 0: result: 1
-procdog: debug: monitor: process done (code 0), exiting
+procdog: monitor: process done (code 0), exiting
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 1: result: 1
 procdog: debug: monitor: running health check: command: false
@@ -237,7 +241,7 @@ procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 3: result: 1
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 4: result: 1
-procdog: debug: monitor: command 'wait': response 'running, health=1, pid=_PID_'
+procdog: monitor: command 'wait': response 'running, health=1, pid=_PID_'
 procdog: debug: client: wait: running, health=1, pid=_PID_
 running, health=1, pid=_PID_
 
@@ -247,8 +251,8 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed, signal=15'
+procdog: monitor: process done (code -15), exiting
+procdog: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 
@@ -257,14 +261,15 @@ procdog start ensure1 --command "sleep 100" --health-command "true" --ensure-hea
 procdog: debug: command-line options: {'ensure_healthy': True, 'command': 'sleep 100', 'health_command': 'true'}
 procdog: debug: final options: Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 100
-procdog: debug: monitor: listening on /var/tmp/procdog.ensure1.sock
+procdog: monitor: Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: sleep 100
+procdog: monitor: listening on /var/tmp/procdog.ensure1.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: monitor: ensure_healthy is set, waiting for health
@@ -273,7 +278,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'wait'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check 0: result: 0
-procdog: debug: monitor: command 'wait': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'wait': response 'running, health=0, pid=_PID_'
 procdog: debug: client: wait: running, health=0, pid=_PID_
 procdog: debug: monitor: ensure_healthy is set and process is still healthy (running, health=0, pid=_PID_)
 running, health=0, pid=_PID_
@@ -284,8 +289,8 @@ procdog: debug: final options: Options(command=None, health_command=None, health
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed, signal=15'
+procdog: monitor: process done (code -15), exiting
+procdog: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 
@@ -293,14 +298,15 @@ procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-he
 procdog: debug: command-line options: {'ensure_healthy': True, 'command': 'sleep 100', 'health_command': 'false'}
 procdog: debug: final options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 100
-procdog: debug: monitor: listening on /var/tmp/procdog.ensure2.sock
+procdog: monitor: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: sleep 100
+procdog: monitor: listening on /var/tmp/procdog.ensure2.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check: result: 1
-procdog: debug: monitor: command 'status': response 'running, health=1, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=1, pid=_PID_'
 procdog: debug: client: status: running, health=1, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: monitor: ensure_healthy is set, waiting for health
@@ -317,14 +323,14 @@ procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 3: result: 1
 procdog: debug: monitor: running health check: command: false
 procdog: debug: monitor: health check 4: result: 1
-procdog: debug: monitor: command 'wait': response 'running, health=1, pid=_PID_'
+procdog: monitor: command 'wait': response 'running, health=1, pid=_PID_'
 procdog: debug: client: wait: running, health=1, pid=_PID_
 procdog: debug: monitor: ensure_healthy is set and process is still not healthy (running, health=1, pid=_PID_); stopping
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed, signal=15'
+procdog: monitor: process done (code -15), exiting
+procdog: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 
@@ -333,9 +339,10 @@ procdog start err1 --command "no-such-command"
 procdog: debug: command-line options: {'command': 'no-such-command'}
 procdog: debug: final options: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: no-such-command
-procdog: debug: monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
-procdog: debug: monitor: listening on /var/tmp/procdog.err1.sock
+procdog: monitor: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: no-such-command
+procdog: monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
+procdog: monitor: listening on /var/tmp/procdog.err1.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
@@ -351,19 +358,20 @@ procdog start err2 --command "false"
 procdog: debug: command-line options: {'command': 'false'}
 procdog: debug: final options: Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: false
-procdog: debug: monitor: listening on /var/tmp/procdog.err2.sock
-procdog: debug: monitor: process done (code 1), exiting
+procdog: monitor: Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: false
+procdog: monitor: listening on /var/tmp/procdog.err2.sock
+procdog: monitor: process done (code 1), exiting
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=1'
+procdog: monitor: command 'status': response 'exited, returncode=1'
 procdog: debug: client: status: exited, returncode=1
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=1'
+procdog: monitor: command 'status': response 'exited, returncode=1'
 procdog: debug: client: status: exited, returncode=1
 exited, returncode=1
 
@@ -373,19 +381,20 @@ procdog start out1 --command "echo hello" --stdout tmp.stdout.out1 --stderr tmp.
 procdog: debug: command-line options: {'command': 'echo hello', 'stderr': 'tmp.stderr.out1', 'stdout': 'tmp.stdout.out1'}
 procdog: debug: final options: Options(command='echo hello', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: echo hello
-procdog: debug: monitor: listening on /var/tmp/procdog.out1.sock
-procdog: debug: monitor: process done (code 0), exiting
+procdog: monitor: Options(command='echo hello', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: echo hello
+procdog: monitor: listening on /var/tmp/procdog.out1.sock
+procdog: monitor: process done (code 0), exiting
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 exited, returncode=0
 sleep 1
@@ -402,19 +411,20 @@ procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.ou
 procdog: debug: command-line options: {'stdin': 'tmp.stdin.out2', 'command': 'cat', 'stderr': 'tmp.stdout.out2', 'stdout': 'tmp.stdout.out2'}
 procdog: debug: final options: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: cat
-procdog: debug: monitor: listening on /var/tmp/procdog.out2.sock
-procdog: debug: monitor: process done (code 0), exiting
+procdog: monitor: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False)
+procdog: monitor: starting shell command: cat
+procdog: monitor: listening on /var/tmp/procdog.out2.sock
+procdog: monitor: process done (code 0), exiting
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
+procdog: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 exited, returncode=0
 cat tmp.stdin.out2
@@ -431,14 +441,15 @@ procdog: debug: config file options from file ./tests/procdog.cfg: {'health_comm
 procdog: debug: command-line options: {}
 procdog: debug: final options: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
 procdog: debug: client: wait: checking for connect...
-procdog: debug: monitor: starting: sleep 100
-procdog: debug: monitor: listening on /var/tmp/procdog.conftest.sock
+procdog: monitor: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog: monitor: starting shell command: sleep 100
+procdog: monitor: listening on /var/tmp/procdog.conftest.sock
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check: result: 0
-procdog: debug: monitor: command 'status': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'status': response 'running, health=0, pid=_PID_'
 procdog: debug: client: status: running, health=0, pid=_PID_
 procdog: debug: client: wait: connect success
 procdog: debug: monitor: ensure_healthy is set, waiting for health
@@ -447,7 +458,7 @@ procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'wait'
 procdog: debug: monitor: running health check: command: true
 procdog: debug: monitor: health check 0: result: 0
-procdog: debug: monitor: command 'wait': response 'running, health=0, pid=_PID_'
+procdog: monitor: command 'wait': response 'running, health=0, pid=_PID_'
 procdog: debug: client: wait: running, health=0, pid=_PID_
 procdog: debug: monitor: ensure_healthy is set and process is still healthy (running, health=0, pid=_PID_)
 running, health=0, pid=_PID_
@@ -460,8 +471,8 @@ procdog: debug: final options: Options(command='sleep 100', health_command='true
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'stop'
-procdog: debug: monitor: process done (code -15), exiting
-procdog: debug: monitor: command 'stop': response 'killed, signal=15'
+procdog: monitor: process done (code -15), exiting
+procdog: monitor: command 'stop': response 'killed, signal=15'
 procdog: debug: client: stop: killed, signal=15
 killed, signal=15
 
