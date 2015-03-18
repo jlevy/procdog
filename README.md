@@ -10,10 +10,10 @@ personal machine, when developing, in build systems and test harnesses, etc.
 
 Why would you want this tool?
 
-Traditionally, in the Unix world, the answers to controlling services and daemons
+Traditionally, in the Unix world, the way to control services and daemons
 are Bash `/etc/rc.d` scripts,
 [start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html),
-[Upstart](http://upstart.ubuntu.com/)), or
+[Upstart](http://upstart.ubuntu.com/), or
 [systemd](http://www.freedesktop.org/wiki/Software/systemd/).
 These are great for production deployment, but tend to be a bit arcane and highly
 OS-dependent, so you can't easily develop and test on both MacOS and Linux
@@ -35,7 +35,7 @@ Now you can start and monitor any process (here let's pick "sleep", since you al
 this). 
 
 ```
-$ procdog start myprocess --command "sleep 20"
+$ procdog start myprocess --command "sleep 100"
 running, pid=14969
 $ procdog status myprocess
 running, pid=14969
