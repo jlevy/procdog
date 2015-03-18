@@ -88,13 +88,21 @@ procdog stop ensure1
 procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy
 
 # Short-lived processes and error conditions.
+rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
+
 procdog start err1 --command "no-such-command"
 
 procdog start err2 --command "false"
 
-# Redirect stdout and stderr.
-rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
-procdog start out1 --command "echo hello" --stdout tmp.stdout.out1 --stderr tmp.stderr.out1
+procdog start pwd --command "pwd" --stdout tmp.stdout.pwd
+tail -1 tmp.stdout.pwd
+
+procdog start pwd --command "pwd" --stdout tmp.stdout.pwd --dir /tmp
+tail -1 /tmp/tmp.stdout.pwd
+
+# Redirect stdout and stderr. Environment variables.
+export TESTENV=wensleydale
+procdog start out1 --command 'echo hello $TESTENV' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1
 sleep 1
 cat tmp.stdout.out1
 cat tmp.stderr.out1

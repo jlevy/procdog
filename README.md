@@ -78,6 +78,7 @@ is running and tell you.
 $ procdog start backend --command="java -classpath my-backend.jar com.example.BackendServer server config.yml" \
   --health-command="curl http://localhost:8080/ping" \
   --health-count=10 --health-delay=2 \
+  --dir=$HOME/backend \
   --stdout=backend.log --stderr=backend.log --append \
   --ensure-healthy --strict
 running, health=0, pid=15240
@@ -98,10 +99,11 @@ Some notes on this:
   The return code of the health check command must be `0` for the server to be considered
   healthy. In this case, we're callin `curl` on a known health-check URL, which will have
   return code 0 on an HTTP 200 
-- The ``--ensure-healthy`` option means the command will block until the process is healthy,
+- The `--ensure-healthy` option means the command will block until the process is healthy,
   or until the daemon gives up and kills the process (if necessary). In this example,
   it will try 10 times, sleeping 2 seconds each time, before giving up.
-- We ask the client to be strict, so that it returns non-zero status code when we try to
+- The `--dir` option means process will run from that directory.
+- We ask the client to be `--strict`, so that it returns non-zero status code when we try to
   start a process that's already running or or stop one that is already stopped.
 
 ### Configuration files
@@ -115,6 +117,7 @@ command=java -classpath my-backend.jar com.example.BackendServer server config.y
 health_command=curl http://localhost:8080/ping
 health_count=10
 health_delay=2.
+dir=$HOME/backend
 stdout=backend.log
 stderr=backend.log
 append=False
@@ -122,10 +125,12 @@ ensure_healthy=True
 strict=True
 ```
 
-You have any number of sections, one section per process. Procdog reads options from
-`~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog` script resides).
-Any options given on the command line override those in the configuration file.
-Once you have the above section in your config file, you can run:
+You have any number of sections, one section per process. Procdog reads options
+from `~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog`
+script resides). Any options given on the command line override those in the
+configuration file. Note that environment variables (like `$HOME`) are
+allowed and expanded. Once you have the above section in your config file,
+you can run:
 
 ```
 $ procdog start backend

@@ -13,7 +13,7 @@ It operates by starting a small daemon that popen()s and monitors the process.
 The daemon listens and accepts commands on a local Unix domain socket, making
 it possible to check the process is running or terminate it, and to do simple
 health checks. For simplicity, there is a single Procdog daemon for each
-monitored process, so each process is handled compeltely separately.
+monitored process, so each process is handled completely separately.
 '''
 
 # Author: Joshua Levy
@@ -23,6 +23,7 @@ monitored process, so each process is handled compeltely separately.
 from __future__ import print_function
 import socket, sys, os, time, shlex, ConfigParser, argparse, re
 from collections import namedtuple
+from string import Template
 from datetime import datetime
 from threading import Thread, Lock
 # The subprocess module has known threading issues, so prefer subprocess32.
@@ -32,7 +33,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -64,6 +65,8 @@ EOM = "\n"
 SOCKET_TIMEOUT = 3
 
 DEBUG = False
+
+LOG_BUFFERING = 1
 
 _UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
 
@@ -181,17 +184,17 @@ def _health_check(health_cmd, count=None):
   _debug("monitor: health check%s: result: %s" % ("" if count is None else " %s" % count, health))
   return health
 
-def _wait_for_health(popen, health_cmd, health_count, health_delay):
+def _wait_for_health(popen, options):
   '''Wait for the given process to exit, the health command to return true, or the total health
      checks to expire. Return final health code, or None if process already exited.'''
   health = None
-  for count in range(0, health_count):
+  for count in range(0, options.health_count):
     if popen.poll() is not None:
       return None
-    health = _health_check(health_cmd, count)
+    health = _health_check(options.health_command, count=count)
     if health == HEALTHY_CODE:
       return health
-    time.sleep(health_delay)
+    time.sleep(options.health_delay)
   return health
 
 
@@ -214,7 +217,7 @@ def _handle_command(cmd, popen, options):
         resp = _resp_encode(RESP_EXITED, returncode=popen.returncode, health=health)
     elif cmd == CMD_WAIT:
       if health_command:
-        health = _wait_for_health(popen, health_command, health_count, health_delay)
+        health = _wait_for_health(popen, options)
       if popen.poll() is None:
         resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
       else:
@@ -237,7 +240,7 @@ def _handle_command(cmd, popen, options):
   return resp
 
 def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
-  f = open(filename, write_mode)
+  f = open(filename, write_mode, LOG_BUFFERING)
   if write_header:
     f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, _UTC_TIMESTAMP, id, shell_cmd))
     f.flush()
@@ -292,7 +295,7 @@ def daemonize_and_monitor(id, shell_cmd, options):
      control socket.'''
 
   # Deamonize. If we're debugging, keep all debug output on the console.
-  is_daemon = daemonize(home_dir=os.getcwd(), do_redirect=not DEBUG, stdout=LOG_PATH_PAT % id)
+  is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % id)
 
   if is_daemon:
     _info("monitor: %s" % (options,))
@@ -306,6 +309,7 @@ def daemonize_and_monitor(id, shell_cmd, options):
     fin = _NULL_INPUT
     fout = None
     ferr = None
+    # Note paths here are relative to options.dir.
     if options.stdin:
       fin = open(options.stdin, 'r')
     if options.stdout:
@@ -467,7 +471,6 @@ def _read_config_file(id, config_file, target_types):
     if config_file:
       config = ConfigParser.RawConfigParser()
       config.read(config_file)
-      _debug("target types: %s" % target_types)
       for (key, str_value) in config.items(id):
         if key not in Options._fields:
           raise ValueError("Unrecognized config key: '%s' in '%s'" % (key, config_file))
@@ -476,12 +479,18 @@ def _read_config_file(id, config_file, target_types):
     pass
   return out
 
+def _expand_variables(template_str):
+  '''Expand a string like "$HOME/foo" using environment variables.'''
+  if template_str is None:
+    return None
+  else:
+    return Template(template_str).substitute(os.environ)
 
 # These are the options configurable by file or command line.
-Options = namedtuple("Options", "command health_command health_count health_delay ensure_healthy stdin stdout stderr append linger strict")
+Options = namedtuple("Options", "command health_command health_count health_delay ensure_healthy dir stdin stdout stderr append linger strict")
 
 OPTION_DEFAULTS = Options(command=None, health_command=None, health_count=5, health_delay=1., ensure_healthy=False,
-                          stdin=None, stdout=None, stderr=None, append=False, linger=3., strict=False)
+                          dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3., strict=False)
 
 def main():
   parser = argparse.ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
@@ -492,6 +501,7 @@ def main():
   parser.add_argument("--health-count", help="with start: max tries for health check", type=int)
   parser.add_argument("--health-delay", help="with start: delays for health check", type=float)
   parser.add_argument("--ensure-healthy", help="with start: wait for health, then shut down if not healhty", action="store_true")
+  parser.add_argument("--dir", help="with start: alternate directory to start from")
   parser.add_argument("--stdin", help="with start: filename for standard input (defaults to /dev/null)")
   parser.add_argument("--stdout", help="with start: filename for standard input")
   parser.add_argument("--stderr", help="with start: filename for standard error (may be same as --stdout)")
@@ -523,6 +533,7 @@ def main():
 
     # Precedence on options is command line, then file, then defaults.
     default_options = vars(OPTION_DEFAULTS)
+
     combined = default_options.copy()
     combined.update(file_options)
     combined.update(command_line_options)
@@ -531,12 +542,20 @@ def main():
     if config_file:
       _debug("config file options from file %s: %s" % (config_file, file_options))
     _debug("command-line options: %s" % command_line_options)
-    _debug("final options: %s" % (options,))
+    _debug("combined options: %s" % (options,))
+
+    # Final preparation of options.
+    # Expand environment variables now, while they are available.
+    options = options._replace(command=_expand_variables(options.command),
+                               health_command=_expand_variables(options.health_command),
+                               dir=_expand_variables(options.dir) or os.getcwd())
 
     if not re.compile("^[\\w-]+$").match(args.id):
       parser.error("Invalid process identifier '%s'; must be alphanumeric, with only underscores or dashes" % args.id)
     if args.control_cmd == "start" and not options.command:
       parser.error("Must specify --command with 'start' or supply a command in the config file for this id ('%s')" % args.id)
+    if not os.path.isdir(options.dir):
+      parser.error("Not a directory: %s" % options.dir)
 
     if args.control_cmd == CMD_START:
       result = start(args.id, options.command, options=options, strict=options.strict)
@@ -564,6 +583,7 @@ if __name__ == '__main__':
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - --shell option that invokes full shell parsing of command and health_command
 # - list command to show status of all running processes
+# - customizable shutdown command (e.g. another script to execute that does something besides just kill)
 # - restart (kill + start) command
 # - retry policies to rerun if process dies
 # - tests for more corner cases such as shlex failures and config file errors
