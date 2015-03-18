@@ -22,7 +22,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.7"
+VERSION = "0.1.0"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -161,7 +161,8 @@ def _resp_is_unhealthy(str):
 
 def _health_check(health_cmd, count=None):
   _debug("monitor: running health check: command: %s" % health_cmd)
-  health = subprocess.call(health_cmd, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
+  args = shlex.split(health_cmd)
+  health = subprocess.call(args, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
   _debug("monitor: health check%s: result: %s" % ("" if count is None else " %s" % count, health))
   return health
 
@@ -234,7 +235,6 @@ def fork_and_monitor(id, shell_cmd, options):
 
   if child_pid == 0:
     _debug("monitor: starting: %s" % shell_cmd)
-    args = shlex.split(shell_cmd)
     popen = None
     error = None
 
@@ -256,6 +256,7 @@ def fork_and_monitor(id, shell_cmd, options):
 
     # Start process, tracking any immediate errors.
     try:
+      args = shlex.split(shell_cmd)
       popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
     except OSError as e:
       error = "Failed to start: %s: %s" % (e, shell_cmd)
@@ -493,4 +494,6 @@ if __name__ == '__main__':
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - list command to show status of all running processes
 # - retry policies to rerun if process dies
+# - tests for more corner cases such as shlex failures and config file errors
 # - more testing on Mac+Linux
+# - keyboard interrupt handler with best effort to kill process if user does control-C while health check is waiting?

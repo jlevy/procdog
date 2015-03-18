@@ -168,8 +168,8 @@ procdog: debug: client: wait: checking for connect...
 procdog: debug: client: connected
 procdog: debug: monitor: listen accept
 procdog: debug: monitor: received command 'status'
-procdog: debug: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: monitor: starting: sleep 1
+procdog: debug: monitor: command 'status': response 'exited, returncode=0'
 procdog: debug: client: status: exited, returncode=0
 procdog: debug: client: wait: connect success
 procdog: debug: client: connected
@@ -394,6 +394,7 @@ procdog: _TIMESTAMP_ Starting process 'out1' with command: echo hello
 hello
 cat tmp.stderr.out1
 procdog: _TIMESTAMP_ Starting process 'out1' with command: echo hello
+rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
 # Read from input and write stderr and stdout to same output.
 echo input > tmp.stdin.out2

@@ -91,6 +91,7 @@ procdog start out1 --command "echo hello" --stdout tmp.stdout.out1 --stderr tmp.
 sleep 1
 cat tmp.stdout.out1
 cat tmp.stderr.out1
+rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
 # Read from input and write stderr and stdout to same output.
 echo input > tmp.stdin.out2
@@ -105,3 +106,4 @@ procdog start conftest --config $config_file
 procdog stop conftest --config $config_file
 
 procdog start conftest_bad --config $config_file
+
