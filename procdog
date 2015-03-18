@@ -4,7 +4,7 @@ r'''
 Procdog is a simple command-line tool to start, stop, and check the health of
 processes.
 
-It is intended to be very simple and easy-to-use alternative to more
+It is intended to be a very simple and easy-to-use alternative to more
 full-featured deployment tools (such as Monit), and to be cross-platform,
 unlike traditional OS-specific tools (such as start-stop-daemon and Upstart),
 for use in development, in build systems and test harnesses, etc.
@@ -31,7 +31,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.1"
+VERSION = "0.1.3"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -462,14 +462,17 @@ def _parse_config(config, section, option, target_type):
 
 def _read_config_file(id, config_file, target_types):
   out = {}
-  if config_file:
-    config = ConfigParser.RawConfigParser()
-    config.read(config_file)
-    _debug("target types: %s" % target_types)
-    for (key, str_value) in config.items(id):
-      if key not in Options._fields:
-        raise ValueError("Unrecognized config key: '%s' in '%s'" % (key, config_file))
-      out[key] = _parse_config(config, id, key, target_types[key])
+  try:
+    if config_file:
+      config = ConfigParser.RawConfigParser()
+      config.read(config_file)
+      _debug("target types: %s" % target_types)
+      for (key, str_value) in config.items(id):
+        if key not in Options._fields:
+          raise ValueError("Unrecognized config key: '%s' in '%s'" % (key, config_file))
+        out[key] = _parse_config(config, id, key, target_types[key])
+  except ConfigParser.NoSectionError:
+    pass
   return out
 
 
@@ -529,10 +532,10 @@ def main():
     _debug("command-line options: %s" % command_line_options)
     _debug("final options: %s" % (options,))
 
+    if not re.compile("^[\\w-]+$").match(args.id):
+      parser.error("Invalid process identifier '%s'; must be alphanumeric, with only underscores or dashes" % args.id)
     if args.control_cmd == "start" and not options.command:
-      parser.error("Must specify --command with 'start'")
-    if not re.compile("^\\w+$").match(args.id):
-      parser.error("Invalid process identifier; must be alphanumeric, with no spaces")
+      parser.error("Must specify --command with 'start' or supply a command in the config file for this id ('%s')" % args.id)
 
     if args.control_cmd == CMD_START:
       result = start(args.id, options.command, options=options, strict=options.strict)

@@ -3,6 +3,39 @@
 python -V
 Python 2.7.9
 
+# Error invocations.
+procdog blah || expect_error
+usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
+               [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
+               [--ensure-healthy] [--stdin STDIN] [--stdout STDOUT]
+               [--stderr STDERR] [--append] [--linger LINGER] [--strict]
+               [--config CONFIG] [--debug]
+               {start,status,wait,stop} id
+procdog: error: argument control_cmd: invalid choice: 'blah' (choose from 'start', 'status', 'wait', 'stop')
+(got expected error: status 2)
+
+procdog status || expect_error
+usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
+               [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
+               [--ensure-healthy] [--stdin STDIN] [--stdout STDOUT]
+               [--stderr STDERR] [--append] [--linger LINGER] [--strict]
+               [--config CONFIG] [--debug]
+               {start,status,wait,stop} id
+procdog: error: too few arguments
+(got expected error: status 2)
+
+procdog status foo@bar || expect_error
+procdog: debug: command-line options: {}
+procdog: debug: final options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
+               [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
+               [--ensure-healthy] [--stdin STDIN] [--stdout STDOUT]
+               [--stderr STDERR] [--append] [--linger LINGER] [--strict]
+               [--config CONFIG] [--debug]
+               {start,status,wait,stop} id
+procdog: error: Invalid process identifier; must be alphanumeric, with only underscores or dashes
+(got expected error: status 2)
+
 # Start, stop, and status on a long-lived process.
 procdog status long
 procdog: debug: command-line options: {}

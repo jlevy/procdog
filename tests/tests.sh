@@ -27,6 +27,13 @@ set -v
 # Python version we're using to run tests.
 python -V
 
+# Error invocations.
+procdog blah || expect_error
+
+procdog status || expect_error
+
+procdog status foo@bar || expect_error
+
 # Start, stop, and status on a long-lived process.
 procdog status long
 
