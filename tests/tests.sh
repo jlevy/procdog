@@ -17,6 +17,8 @@ expect_error() {
   echo "(got expected error: status $?)"
 }
 
+config_file=`dirname $0`/procdog.cfg
+
 # This will echo all commands as they are read. Bash commands plus their
 # outputs will be used for validating regression tests pass (set -x is similar
 # but less readable and sometimes not deterministic).
@@ -96,3 +98,10 @@ procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.ou
 cat tmp.stdin.out2
 cat tmp.stdout.out2
 
+
+# Configuration tests.
+procdog start conftest --config $config_file
+
+procdog stop conftest --config $config_file
+
+procdog start conftest_bad --config $config_file

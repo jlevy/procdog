@@ -11,10 +11,10 @@ use in build systems, test harnesses, etc.
 # Created: 2015-03-14
 
 from __future__ import print_function
-import socket, sys, os, time, shlex
+import socket, sys, os, time, shlex, ConfigParser, argparse
+from collections import namedtuple
 from datetime import datetime
 from threading import Thread, Lock
-from argparse import ArgumentParser
 # The subprocess module has known threading issues, so prefer subprocess32.
 try:
   import subprocess32 as subprocess
@@ -22,10 +22,13 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.0.6"
+VERSION = "0.0.7"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
+
+CONFIG_FILE = "procdog.cfg"
+CONFIG_DOTFILE = "." + CONFIG_FILE
 
 CMD_START = "start"  # Not a command sent to monitor.
 CMD_STATUS = "status"
@@ -51,6 +54,10 @@ SOCKET_TIMEOUT = 3
 DEBUG = False
 
 _UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
+
+# Workarounds for lack of Python 2 subprocess /dev/null support
+_NULL_INPUT = open(os.devnull, "r")
+_NULL_OUTPUT = open(os.devnull, "w")
 
 _LOG_LOCK = Lock()
 
@@ -151,9 +158,6 @@ def _resp_is_unhealthy(str):
   return bits[0] == RESP_RUNNING and "health=0" not in bits
 
 
-# Workarounds for lack of Python 2 subprocess /dev/null support
-_NULL_INPUT = open(os.devnull, "r")
-_NULL_OUTPUT = open(os.devnull, "w")
 
 def _health_check(health_cmd, count=None):
   _debug("monitor: running health check: command: %s" % health_cmd)
@@ -234,10 +238,10 @@ def fork_and_monitor(id, shell_cmd, options):
     popen = None
     error = None
 
-    # Open file descriptors for stdin/stdout/stderr if needed.
+    # Open file descriptors for stdout/stderr if needed. We always set stdin to /dev/null.
     # TODO: Consider closing of these on process exit.
     write_mode = 'a' if options.append else 'w'
-    fin = None
+    fin = _NULL_INPUT
     fout = None
     ferr = None
     if options.stdin:
@@ -372,46 +376,114 @@ def stop(id, strict=False):
       return RESP_STOPPED
 
 
+def _locate_config_file():
+  '''Look in common locations for config file.'''
+  base_dir = os.path.dirname(sys.argv[0])
+  paths = [os.path.join(base_dir, CONFIG_FILE), os.path.join(os.getenv("HOME"), CONFIG_DOTFILE)]
+  for path in paths:
+    if os.path.isfile(path):
+      _debug("using config file: %s" % path)
+      return path
+  return None
+
+def _parse_config(config, section, option, target_type):
+  if target_type == str:
+    return config.get(section, option)
+  elif target_type == bool:
+    return config.getboolean(section, option)
+  elif target_type == int:
+    return config.getint(section, option)
+  elif target_type == float:
+    return config.getfloat(section, option)
+
+def _read_config_file(id, config_file, target_types):
+  out = {}
+  if config_file:
+    config = ConfigParser.RawConfigParser()
+    config.read(config_file)
+    _debug("target types: %s" % target_types)
+    for (key, str_value) in config.items(id):
+      if key not in Options._fields:
+        raise ValueError("Unrecognized config key: '%s' in '%s'" % (key, config_file))
+      out[key] = _parse_config(config, id, key, target_types[key])
+  return out
+
+
+# These are the options configurable by file or command line.
+Options = namedtuple("Options", "command health_command health_count health_delay ensure_healthy stdin stdout stderr append linger strict")
+
+OPTION_DEFAULTS = Options(command=None, health_command=None, health_count=5, health_delay=1., ensure_healthy=False,
+                          stdin=None, stdout=None, stderr=None, append=False, linger=3., strict=False)
+
 def main():
-  parser = ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
+  parser = argparse.ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
   parser.add_argument("control_cmd", help="command", choices=CMD_LIST)
   parser.add_argument("id", help="unique identifier for this process")
   parser.add_argument("-c", "--command", help="with start: full command to start process, with all arguments, in shell syntax")
   parser.add_argument("--health-command", help="with start: full command to perform health check")
-  parser.add_argument("--health-count", help="with start: max tries for health check", type=int, default=5)
-  parser.add_argument("--health-delay", help="with start: delays for health check", type=float, default=1.)
+  parser.add_argument("--health-count", help="with start: max tries for health check", type=int)
+  parser.add_argument("--health-delay", help="with start: delays for health check", type=float)
   parser.add_argument("--ensure-healthy", help="with start: wait for health, then shut down if not healhty", action="store_true")
-  parser.add_argument("--stdin", help="with start: filename for standard input")
+  parser.add_argument("--stdin", help="with start: filename for standard input (defaults to /dev/null)")
   parser.add_argument("--stdout", help="with start: filename for standard input")
   parser.add_argument("--stderr", help="with start: filename for standard error (may be same as --stdout)")
   parser.add_argument("--append", help="with start: append to files specified in --stdout and --stderr", action="store_true")
-  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float, default=3.)
-  parser.add_argument("--debug", help="enable debugging output", action="store_true")
+  parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float)
   parser.add_argument("--strict", help="abort with error if asked to start a started process or stop a stopped one", action="store_true")
+  parser.add_argument("--config", help="non-default location on config file to read")
+  parser.add_argument("--debug", help="enable debugging output", action="store_true")
   args = parser.parse_args()
-
-  if args.control_cmd == "start" and not args.command:
-    parser.error("Must specify --comand with 'start'")
-  if args.control_cmd != "start" and (args.command or args.stdin or args.stdout or args.stderr or args.append):
-    parser.error("Some options may only be used with 'start'")
 
   global DEBUG
   DEBUG = args.debug
 
   try:
+    config_file = args.config if args.config else _locate_config_file()
+
+    # XXX Hack to reuse argparse's internal actions list, to avoid repeating ourselves when parsing out data types from the config file.
+    actions = { action.dest: action for action in parser._actions if action.dest in Options._fields }
+    target_types = { action.dest: (action.type or type(action.const or "")) for action in actions.values() }
+
+    file_options = _read_config_file(args.id, config_file, target_types)
+
+    def was_explicitly_set(action, val):
+      return (type(action) != argparse._StoreTrueAction and type(action) != argparse._StoreFalseAction) or val != action.default
+
+    # These are only the options that were explicitly set.
+    command_line_options = { key: val for (key, val) in vars(args).items()
+                                                     if key in Options._fields and val is not None and was_explicitly_set(actions[key], val) }
+
+    # Precedence on options is command line, then file, then defaults.
+    default_options = vars(OPTION_DEFAULTS)
+    combined = default_options.copy()
+    combined.update(file_options)
+    combined.update(command_line_options)
+    options = Options(**combined)
+
+    if config_file:
+      _debug("config file options from file %s: %s" % (config_file, file_options))
+    _debug("command-line options: %s" % command_line_options)
+    _debug("final options: %s" % (options,))
+
+    if args.control_cmd == "start" and not options.command:
+      parser.error("Must specify --command with 'start'")
+
     if args.control_cmd == CMD_START:
-      result = start(args.id, args.command, options=args, strict=args.strict)
+      result = start(args.id, options.command, options=options, strict=options.strict)
     elif args.control_cmd == CMD_STOP:
-      result = stop(args.id, strict=args.strict)
+      result = stop(args.id, strict=options.strict)
     elif args.control_cmd == CMD_STATUS:
       result = status(args.id)
     elif args.control_cmd == CMD_WAIT:
       result = wait(args.id)
     print(result)
+
   except AlreadyRunningException as e:
     _die("process '%s' is already running" % args.id, code=2)
   except NotRunningException as e:
     _die("process '%s' is not running" % args.id, code=3)
+  except ValueError as e:
+    _die(str(e), code=4)
 
 if __name__ == '__main__':
   main()
@@ -419,7 +491,6 @@ if __name__ == '__main__':
 # TODO:
 # - return health code as exit code on wait
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - config file
 # - list command to show status of all running processes
 # - retry policies to rerun if process dies
 # - more testing on Mac+Linux
