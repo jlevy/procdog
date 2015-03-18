@@ -2,27 +2,41 @@
 
 ## Lightweight command-line process control
 
-Procdog is a simple command-line tool to start, stop, and check the health of
+Procdog (as in "**proc**ess watch**dog**"... get it?)
+is a simple command-line tool to start, stop, and check the health of
 processes. It works with any kind of process you can invoke from the command
-line (be it Java, Node, Python, or anything) on MacOS or Linux. It's useful if
-you have servers, databases, or other processes you want to manage on your
-personal machine, when developing, in build systems and test harnesses, etc.
+line (be it Java, Node, Python, or anything) on MacOS or Linux.
 
-Why would you want this tool?
+Why would you want another tool for this?
 
-Traditionally, in the Unix world, the way to control services and daemons
-are Bash `/etc/rc.d` scripts,
-[start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html),
-[Upstart](http://upstart.ubuntu.com/), or
-[systemd](http://www.freedesktop.org/wiki/Software/systemd/).
-These are great for production deployment, but tend to be a bit arcane and highly
-OS-dependent, so you can't easily develop and test on both MacOS and Linux
-(as many of us try to do).
-Another alternative is custom Bash scripts (writing PID files, using `pgrep` and `pkill`,
-etc.), but this also gets platform-dependent and messy pretty quickly.
+- For basic interactive situations, you can just run a process in a terminal
+  or use job management in your shell (`jobs`, `kill`, etc.).
+- But you rapidly realize this won't work well once you have longer-lived processes
+  or are `ssh`ing to remote servers. Then you could use `nohup` and manually
+  checking with `ps`, or using [screen](http://en.wikipedia.org/wiki/GNU_Screen).
+  But these don't script easily.
+- You also might want to script starting and stopping.
+  With a little effort you might write a custom Bash script (writing a PID file,
+  using `pgrep` and `pkill`, etc.), but it's a hassle and gets messy quickly.
+- Of course, you can just "do it right." Traditionally, in the Unix world, the way to
+  control services and daemon are Bash `/etc/rc.d` scripts,
+  [start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html),
+  [Upstart](http://upstart.ubuntu.com/), or
+  [systemd](http://www.freedesktop.org/wiki/Software/systemd/).
+  These are essential for production deployment, but tend to be a bit arcane and highly
+  OS-dependent, so aren't as simple for casual use, and you can't easily develop
+  and test on both MacOS and Linux (as many of us try to do).
 
-Procdog is an alternative for developers that tries to be easy to install, obvious
-to use, and cross-platform.
+Procdog is an alternative for developers that attempts to be easy to install,
+simple and obvious to use, and cross-platform. Processes are independent of the
+shell used to invoke them (i.e., detatched as with `nohup`) and you can also check
+status or kill them at any time (as with a Unix service).
+
+You'll find it useful if you have servers, databases, or other processes you want
+to manage on your personal machine, when developing, in build systems and test
+harnesses, etc. Currently, it *doesn't* have restart logic, log file rotation,
+or some other features you may want for a production environments; for this
+consider Upstart, systemd, & co.
 
 ## Installation
 
@@ -31,8 +45,8 @@ file into your path. Requires Python 2.7.
 
 ## Quick start
 
-Now you can start and monitor any process (here let's pick "sleep", since you already have
-this). 
+Now you can start and monitor any process (here let's pick "sleep" -- not all that
+useful, but you already have it):
 
 ```
 $ procdog start myprocess --command "sleep 100"
@@ -125,14 +139,17 @@ Procdog starts a small daemon that `popen()`s and monitors the process.
 The daemon listens and accepts commands on a local
 [Unix domain socket](http://en.wikipedia.org/wiki/Unix_domain_socket),
 making it possible to check the process is running or terminate it, and to do simple
-health checks. You can see these sockets at `/var/tmp/procdog.*.sock`. For simplicity,
-there is a single Procdog daemon for each monitored process, so each process is handled
-compeltely separately.
+health checks. You can see these sockets at `/var/tmp/procdog.*.sock` (where the * is the
+id of the process). For simplicity, there is a single Procdog daemon for each monitored
+process, so each process is handled compeltely separately.
 
 We use Unix domain sockets so that we don't have the headaches of pid files or
 choosing and binding to TCP ports. They're also available on most platforms.
 
-Procdog is quite new so probably not stable. Bug reports and contributions are welcome.
+Daemon logs are sent to `/var/tmp/procdog.*.log`. Usually you'll want to redirect your
+process stdout and stderr using the `--stdout` and `--stderr` options.
+
+Procdog is quite new so probably not stable. Bug reports and contributions are welcome!
 
 ## Tests
 
