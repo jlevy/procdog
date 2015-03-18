@@ -18,6 +18,7 @@ monitored process, so each process is handled compeltely separately.
 
 # Author: Joshua Levy
 # Created: 2015-03-14
+# https://github.com/jlevy/procdog
 
 from __future__ import print_function
 import socket, sys, os, time, shlex, ConfigParser, argparse, re
@@ -559,6 +560,7 @@ if __name__ == '__main__':
 
 # TODO:
 # - return health code as exit code on wait
+# - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - list command to show status of all running processes
 # - retry policies to rerun if process dies
