@@ -4,52 +4,60 @@
 
 Procdog is a simple command-line tool to start, stop, and check the health of
 processes. It works with any kind of process you can invoke from the command
-line (be it Java, Node, Python, or anything).
+line (be it Java, Node, Python, or anything) on MacOS or Linux. It's useful if
+you have servers, databases, or other processes you want to manage on your
+personal machine, when developing, in build systems and test harnesses, etc.
 
-It is intended to be a very simple and easy-to-use alternative to more
-full-featured deployment tools (such as [Monit](http://mmonit.com/monit/)),
-and to be cross-platform, unlike traditional OS-specific tools
-(such as [start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html)
-and [Upstart](http://upstart.ubuntu.com/)). The kind of thing needed when
-developing locally, in build systems and test harnesses, etc.
+Why would you want this tool?
 
-It operates by starting a small daemon that `popen()`s and monitors the process.
-The daemon listens and accepts commands on a local Unix domain socket, making
-it possible to check the process is running or terminate it, and to do simple
-health checks. For simplicity, there is a single Procdog daemon for each
-monitored process, so each process is handled compeltely separately.
+Traditionally, in the Unix world, the answers to controlling services and daemons
+are Bash `/etc/rc.d` scripts,
+[start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html),
+[Upstart](http://upstart.ubuntu.com/)), or
+[systemd](http://www.freedesktop.org/wiki/Software/systemd/).
+These are great for production deployment, but tend to be a bit arcane and highly
+OS-dependent, so you can't easily develop and test on both MacOS and Linux
+(as many of us try to do).
+Another alternative is custom Bash scripts (writing PID files, using `pgrep` and `pkill`,
+etc.), but this also gets platform-dependent and messy pretty quickly.
 
-It supports an arbitrary command to test health, so for example, you can `curl`
-a given URL to verify the process is running. It also has options for "strict"
-usage, so you know if a process is unexpectedly started or unexpectedly stopped,
-and allows you to ensure a process is healthy before proceeding -- for example,
-if Procdog is used within a script or build file.
+Procdog is an alternative for developers that tries to be easy to install, obvious
+to use, and cross-platform.
 
-Procdog is quite new so probably not stable. Bug reports and contributions are welcome.
+## Installation
 
-## Requirements and Installation
+Copy the single [`procdog`](https://github.com/jlevy/procdog/blob/master/procdog)
+file into your path. Requires Python 2.7.
 
-Requires Python 2.7. Tested on MacOS and Linux. Just copy the `procdog` file. 
+## Quick start
 
-## Usage
-
-Run `procdog -h` for help.
-
-### Quick example
+Now you can start and monitor any process (here let's pick "sleep", since you already have
+this). 
 
 ```
-$ ./procdog start myprocess --command "sleep 20"
+$ procdog start myprocess --command "sleep 20"
 running, pid=14969
-$ ./procdog status myprocess
+$ procdog status myprocess
 running, pid=14969
-$ ./procdog stop myprocess
+$ procdog stop myprocess
 stopped
 $
 ```
 
-Here `myprocess` is an arbitrary identifier that you use for this process, like a Unix service name. Once the process is done, the monitor daemon also exits.
+Note you have to give your process an arbitrary name (`myprocess` here), like a Unix
+service name, so you can refer to it. Once the process is done, the monitor daemon
+also exits.
 
-### A more useful example
+## Usage
+
+Run `procdog -h` for all options.
+
+Now, with a real server we'd like to know if it's actually up and doing something,
+like listening on a port. Procdog supports an arbitrary command to test health
+(e.g. running `curl` to see if it returns a result) and can wait until a server
+is running and tell you.
+
+### A better example
 
 ```
 $ procdog start backend --command "java -cp my-backend.jar com.example.BackendServer server dw-config.yml" \
@@ -58,24 +66,32 @@ $ procdog start backend --command "java -cp my-backend.jar com.example.BackendSe
   --stdout=backend.log --stderr=backend.log --append \
   --ensure-healthy --strict
 running, health=0, pid=15240
-[levy@spud5 Six5 (server-harness)]$ procdog status backend
+$ procdog status backend
 running, health=0, pid=15240
 $ procdog stop backend --strict
 stopped
 $ procdog stop backend --strict
 procdog: error: process 'backend' is not running
+$
 ```
 
 Some notes on this:
 
-- We can specify where to write stdout and stderr. (They can be the same or different.) Existing files are appended to (`--append`).
-- The health command simply calls `curl` to see if the server is listening. The return code of this must be `0` (i.e. in the case of `curl`, an HTTP 200 status) for the server to be considered healthy.
-- The ``--ensure-healthy`` option means the command will block until the process is healthy, or until the daemon gives up and kills the process (if necessary). In this example, it will try 10 times, sleeping 2 seconds each time, before giving up.
-- We ask the client to be strict, so that it returns non-zero status code when we try to start a process that's already running or or stop one that is already stopped.
+- We can specify where to write stdout and stderr. They can be the same or different.
+  Existing log files are appended to if you use `--append`.
+- The health command simply calls a shell command to see if the server is healthy.
+  The return code of the health check command must be `0` for the server to be considered
+  healthy. In this case, we're callin `curl` on a known health-check URL, which will have
+  return code 0 on an HTTP 200 
+- The ``--ensure-healthy`` option means the command will block until the process is healthy,
+  or until the daemon gives up and kills the process (if necessary). In this example,
+  it will try 10 times, sleeping 2 seconds each time, before giving up.
+- We ask the client to be strict, so that it returns non-zero status code when we try to
+  start a process that's already running or or stop one that is already stopped.
 
-### Using a configuration file
+### Configuration files
 
-It's possible to avoid typing by putting most options in a configuration file. Put a file named `procdog.cfg` in the same directory as `procdog`:
+It's possible to avoid typing by putting most options in a configuration file:
 
 ```
 # Procdog config file. Each section is a process identifier.
@@ -91,7 +107,9 @@ ensure_healthy=True
 strict=True
 ```
 
-Now you can simply run:
+Procdog reads options from `~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog` script resides).
+Any options given on the command line override those in the configuration file. Once you have the above
+section in your config file, you can run:
 
 ```
 $ procdog start backend
@@ -101,9 +119,20 @@ stopped
 $
 ```
 
-Procdog reads options from `~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog` script resides). Any options given on the command line override those in the configuration file.
+## How it works
 
-See `tests/tests.sh` for more examples.
+Procdog starts a small daemon that `popen()`s and monitors the process.
+The daemon listens and accepts commands on a local
+[Unix domain socket](http://en.wikipedia.org/wiki/Unix_domain_socket),
+making it possible to check the process is running or terminate it, and to do simple
+health checks. You can see these sockets at `/var/tmp/procdog.*.sock`. For simplicity,
+there is a single Procdog daemon for each monitored process, so each process is handled
+compeltely separately.
+
+We use Unix domain sockets so that we don't have the headaches of pid files or
+choosing and binding to TCP ports. They're also available on most platforms.
+
+Procdog is quite new so probably not stable. Bug reports and contributions are welcome.
 
 ## Tests
 
