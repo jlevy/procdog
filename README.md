@@ -60,8 +60,8 @@ is running and tell you.
 ### A better example
 
 ```
-$ procdog start backend --command "java -cp my-backend.jar com.example.BackendServer server dw-config.yml" \
-  --health-command "curl http://localhost:8080/ping" \
+$ procdog start backend --command="java -classpath my-backend.jar com.example.BackendServer server config.yml" \
+  --health-command="curl http://localhost:8080/ping" \
   --health-count=10 --health-delay=2 \
   --stdout=backend.log --stderr=backend.log --append \
   --ensure-healthy --strict
@@ -96,7 +96,7 @@ It's possible to avoid typing by putting most options in a configuration file:
 ```
 # Procdog config file. Each section is a process identifier.
 [backend]
-command=java -cp my-backend.jar com.example.BackendServer server dw-config.yml
+command=java -classpath my-backend.jar com.example.BackendServer server config.yml
 health_command=curl http://localhost:8080/ping
 health_count=10
 health_delay=2.
@@ -136,9 +136,10 @@ Procdog is quite new so probably not stable. Bug reports and contributions are w
 
 ## Tests
 
-All basic features are covered with a simple Bash-based regression tests.
+All basic features are covered with a simple Bash-based regression test.
 
-To run, git clone this repo, invoke `tests/run.sh` then follow the directions to diff the output using `git`.
+To run it, clone this repo, invoke `tests/run.sh` then follow the directions to diff
+the output using `git`.
 
 ## License
 
