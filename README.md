@@ -5,7 +5,7 @@
 Procdog (as in "**proc**ess watch**dog**"... get it?)
 is a simple command-line tool to start, stop, and check the health of
 processes. It works with any kind of process you can invoke from the command
-line (be it Java, Node, Python, or anything) on MacOS or Linux.
+line (be it native, Java, Node, Python, or anything) on MacOS or Linux.
 
 Why would you want another tool for this?
 
@@ -19,13 +19,14 @@ Why would you want another tool for this?
   With a little effort you might write a custom Bash script (writing a PID file,
   using `pgrep` and `pkill`, etc.), but it's a hassle and gets messy quickly.
 - Of course, you can just "do it right." Traditionally, in the Unix world, the way to
-  control services and daemon are Bash `/etc/rc.d` scripts,
+  control services are
+  [System V service scripts](http://manpages.ubuntu.com/manpages/trusty/man8/service.8.html),
   [start-stop-daemon](http://manpages.ubuntu.com/manpages/karmic/man8/start-stop-daemon.8.html),
   [Upstart](http://upstart.ubuntu.com/), or
   [systemd](http://www.freedesktop.org/wiki/Software/systemd/).
-  These are essential for production deployment, but tend to be a bit arcane and highly
-  OS-dependent, so aren't as simple for casual use, and you can't easily develop
-  and test on both MacOS and Linux (as many of us try to do).
+  Using these is essential for production deployment, but they tend to be a bit arcane
+  and highly OS-dependent, so aren't as convenient for casual use, and you can't easily
+  develop and test on both MacOS and Linux (as many of us try to do).
 
 Procdog is an alternative for developers that attempts to be easy to install,
 simple and obvious to use, and cross-platform. Processes are independent of the
@@ -121,9 +122,10 @@ ensure_healthy=True
 strict=True
 ```
 
-Procdog reads options from `~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog` script resides).
-Any options given on the command line override those in the configuration file. Once you have the above
-section in your config file, you can run:
+You have any number of sections, one section per process. Procdog reads options from
+`~/.procdog.cfg` or `procdog.cfg` (in the same directory the `procdog` script resides).
+Any options given on the command line override those in the configuration file.
+Once you have the above section in your config file, you can run:
 
 ```
 $ procdog start backend
