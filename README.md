@@ -65,14 +65,14 @@ also exits.
 
 ## Usage
 
-Run `procdog -h` for all options.
+Run `procdog -h` for help on all options.
+
+## A better example
 
 Now, with a real server we'd like to know if it's actually up and doing something,
 like listening on a port. Procdog supports an arbitrary command to test health
 (e.g. running `curl` to see if it returns a result) and can wait until a server
 is running and tell you.
-
-### A better example
 
 ```
 $ procdog start backend --command="java -classpath my-backend.jar com.example.BackendServer server config.yml" \
@@ -106,7 +106,7 @@ Some notes on this:
 - We ask the client to be `--strict`, so that it returns non-zero status code when we try to
   start a process that's already running or or stop one that is already stopped.
 
-### Configuration files
+## Configuration files
 
 It's possible to avoid typing by putting most options in a configuration file:
 
