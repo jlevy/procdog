@@ -35,9 +35,9 @@ procdog status || expect_error
 procdog status foo@bar || expect_error
 
 # Start, stop, and status on a long-lived process.
-procdog status long
+procdog status long || expect_error
 
-procdog wait long
+procdog wait long || expect_error
 
 procdog start long --command "sleep 5" --health-command "true"
 sleep 2
@@ -58,25 +58,25 @@ procdog stop long --strict || expect_error
 sleep 4
 
 # Start, stop, and status on a short-lived process.
-procdog status short
+procdog status short || expect_error
 
 procdog start short --command "sleep 1"
 sleep 2
 
-procdog status short
+procdog status short || expect_error
 
 procdog start short --command "sleep 1" --strict
 
-procdog stop long
+procdog stop short
 
-procdog stop long --strict || expect_error
+procdog stop short --strict || expect_error
 
 # A long-lived unhealthy process.
-procdog wait unhealthy1
+procdog wait unhealthy1 || expect_error
 
 procdog start unhealthy1 --command "sleep 100" --health-command "false"
 
-procdog wait unhealthy1
+procdog wait unhealthy1 || expect_error
 
 procdog stop unhealthy1
 
@@ -85,24 +85,24 @@ procdog start ensure1 --command "sleep 100" --health-command "true" --ensure-hea
 
 procdog stop ensure1
 
-procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy
+procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy || expect_error
 
 # Short-lived processes and error conditions.
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
-procdog start err1 --command "no-such-command"
+procdog start err1 --command "no-such-command" || expect_error
 
-procdog start err2 --command "false"
+procdog start err2 --command "false" || expect_error
 
-procdog start pwd --command "pwd" --stdout tmp.stdout.pwd
+procdog start pwd --command "pwd" --stdout tmp.stdout.pwd || expect_error
 tail -1 tmp.stdout.pwd
 
-procdog start pwd --command "pwd" --stdout tmp.stdout.pwd --dir /tmp
+procdog start pwd --command "pwd" --stdout tmp.stdout.pwd --dir /tmp || expect_error
 tail -1 /tmp/tmp.stdout.pwd
 
 # Redirect stdout and stderr. Environment variables.
 export TESTENV=wensleydale
-procdog start out1 --command 'echo hello $TESTENV' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1
+procdog start out1 --command 'echo hello $TESTENV' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1 || expect_error
 sleep 1
 cat tmp.stdout.out1
 cat tmp.stderr.out1
@@ -110,15 +110,15 @@ rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
 # Read from input and write stderr and stdout to same output.
 echo input > tmp.stdin.out2
-procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2
+procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2 || expect_error
 cat tmp.stdin.out2
 cat tmp.stdout.out2
-
 
 # Configuration tests.
 procdog start conftest --config $config_file
 
 procdog stop conftest --config $config_file
 
-procdog start conftest_bad --config $config_file
+procdog start conftest_bad --config $config_file || expect_error
 
+# Done!

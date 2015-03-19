@@ -35,7 +35,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -45,6 +45,7 @@ LOG_PATH_PAT = "/var/tmp/" + NAME + ".%s.log"
 CONFIG_FILE = "procdog.cfg"
 CONFIG_DOTFILE = "." + CONFIG_FILE
 
+# Commands.
 CMD_START = "start"  # Not a command sent to monitor.
 CMD_STATUS = "status"
 CMD_WAIT = "wait"
@@ -52,6 +53,7 @@ CMD_STOP = "stop"
 
 CMD_LIST = [CMD_START, CMD_STATUS, CMD_WAIT, CMD_STOP]
 
+# Response codes.
 RESP_STOPPED = "stopped"  # Not a command returned from monitor.
 RESP_RUNNING = "running"
 RESP_KILLED = "killed"
@@ -61,11 +63,20 @@ RESP_ERROR = "error"
 
 RESP_LIST = [RESP_STOPPED, RESP_RUNNING, RESP_KILLED, RESP_EXITED, RESP_INVALID, RESP_ERROR]
 
+# Exit codes from this command-line tool.
+EXIT_OK = 0
+EXIT_ERROR = 2
+EXIT_UNKNOWN = 3
+EXIT_ALREADY_RUNNING = 4
+EXIT_NOT_RUNNING = 5
+EXIT_NOT_HEALTHY = 6
+
 # Return code expected for a valid health check.
 HEALTHY_CODE = 0
 
 EOM = "\n"
 
+# Connect timeout to local Unix domain socket.
 SOCKET_TIMEOUT = 3
 
 DEBUG = False
@@ -107,11 +118,41 @@ class Response:
     if self.code not in RESP_LIST:
       raise ValueError("invalid response code: '%s'" % self.code)
 
+  def is_running(self):
+    return self.code == RESP_RUNNING
+
   def is_unhealthy(self):
-    return self.code == RESP_RUNNING and int(self.values.get("health", -1)) != 0
+    return self.is_running() and not self.is_healthy()
+
+  def is_healthy(self):
+    return self.is_running() and int(self.values.get("health", -1)) == 0
 
   def can_start(self):
     return self.code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]
+
+  def exit_code(self, control_cmd, strict=False, ensure_healthy=False):
+    if control_cmd == CMD_WAIT:
+      ensure_healthy = True  # The point to the wait command is to get health.
+    if self.code == RESP_INVALID:
+      return EXIT_UNKNOWN
+    elif self.code == RESP_ERROR:
+      return EXIT_ERROR
+    elif control_cmd == CMD_START or control_cmd == CMD_STATUS or control_cmd == CMD_WAIT:
+      if ensure_healthy:
+        return EXIT_OK if self.is_healthy() else EXIT_NOT_HEALTHY
+      else:
+        return EXIT_OK if self.is_running() else EXIT_NOT_RUNNING
+    elif control_cmd == CMD_STOP:
+      if self.code == RESP_KILLED:
+        return EXIT_OK
+      elif self.code == RESP_STOPPED or self.code == RESP_EXITED:
+        return EXIT_NOT_RUNNING if strict else EXIT_OK
+      elif self.is_running():  # For completeness, but should be an exception.
+        return EXIT_ALREADY_RUNNING
+      else:
+        return EXIT_UNKNOWN  # Shouldn't happen.
+    else:
+      assert False
 
   def encode(self):
     if self.error is not None:
@@ -326,6 +367,11 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
   '''Start a monitor daemon that forks the given shell command, listens, and handles commands via a
      control socket.'''
 
+  # Remove the socket path now, before forking, so that client can't connect until
+  # daemon is running.
+  socket_path = SOCKET_PATH_PAT % proc_name
+  _rm_socket_path(socket_path, silent=False)
+
   # Deamonize. If we're debugging, keep all debug output on the console.
   is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % proc_name)
 
@@ -362,10 +408,6 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
     if popen and popen.poll() is not None:
       error = "Failure starting (code %s): %s" % (popen.poll(), shell_cmd)
       _info("monitor: %s" % error)
-
-    # Start listener on fresh Unix domain socket
-    socket_path = SOCKET_PATH_PAT % proc_name
-    _rm_socket_path(socket_path, silent=False)
 
     # If there was an error starting the process, communicate that to original client.
     if popen:
@@ -601,23 +643,28 @@ def main():
 
     response = _execute(args.proc_name, args.control_cmd, options)
     print(response.encode())
-    # TODO: return code
+
+    exit_code = response.exit_code(args.control_cmd, strict=options.strict, ensure_healthy=options.ensure_healthy)
+    _debug("client: exit code %s (based on '%s' with strict=%s and ensure_healthy=%s)" %
+           (exit_code, response, options.strict, options.ensure_healthy))
+    sys.exit(exit_code)
 
   except AlreadyRunningException as e:
-    _die("process '%s' is already running" % args.proc_name, code=2)
+    _die("process '%s' is already running" % args.proc_name, code=EXIT_ALREADY_RUNNING)
   except NotRunningException as e:
-    _die("process '%s' is not running" % args.proc_name, code=3)
+    _die("process '%s' is not running" % args.proc_name, code=EXIT_NOT_RUNNING)
   except ValueError as e:
-    _die(str(e), code=4)
+    _die(str(e), code=EXIT_UNKNOWN)
 
 if __name__ == '__main__':
   main()
 
 # TODO:
-# - return health code as exit code on wait
+# - return health code as exit code on wait?
+# - figure out commands for wait-for-health vs wait-for-exit
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - --shell option that invokes full shell parsing of command and health_command
+# - --shell option that invokes full shell parsing of command and health_command (and disable Template-based expansion)
 # - list command to show status of all running processes
 # - customizable shutdown command (e.g. another script to execute that does something besides just kill)
 # - restart (kill + start) command
