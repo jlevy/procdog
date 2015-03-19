@@ -4,21 +4,23 @@ r'''
 Procdog is a simple command-line tool to start, stop, and check the health of
 processes.
 
-It is intended to be a very simple and easy-to-use alternative to more
-full-featured deployment tools (such as Monit), and to be cross-platform,
-unlike traditional OS-specific tools (such as start-stop-daemon and Upstart),
-for use in development, in build systems and test harnesses, etc.
+It is intended to be a simple, cross-platform alternative to standard tools
+like System V service scripts, Upstart, and systemd, for use in development, in
+build systems and test harnesses, etc.
 
-It operates by starting a small daemon that popen()s and monitors the process.
+It operates by starting a simple daemon that popen()s and monitors the process.
 The daemon listens and accepts commands on a local Unix domain socket, making
-it possible to check the process is running or terminate it, and to do simple
-health checks. For simplicity, there is a single Procdog daemon for each
-monitored process, so each process is handled completely separately.
+it possible to check the process is running or terminate it, and to do basic
+health checks. Every process is independent: There is a single Procdog daemon
+for each monitored process. The daemon exits if the process terminates.
+
+Many options can be set via a configuration file.
+
+For further documentation, see: https://github.com/jlevy/procdog
 '''
 
 # Author: Joshua Levy
 # Created: 2015-03-14
-# https://github.com/jlevy/procdog
 
 from __future__ import print_function
 import socket, sys, os, time, shlex, ConfigParser, argparse, re
@@ -33,7 +35,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -57,6 +59,8 @@ RESP_EXITED = "exited"
 RESP_INVALID = "invalid"
 RESP_ERROR = "error"
 
+RESP_LIST = [RESP_STOPPED, RESP_RUNNING, RESP_KILLED, RESP_EXITED, RESP_INVALID, RESP_ERROR]
+
 # Return code expected for a valid health check.
 HEALTHY_CODE = 0
 
@@ -76,6 +80,52 @@ _NULL_OUTPUT = open(os.devnull, "w")
 
 # Lock is only local to process, but still helps serialize multiple monitor thread logs.
 _LOG_LOCK = Lock()
+
+
+class Response:
+  '''Represents responses sent by the monitor daemon. Responses are errors like
+     "error: some message" or status codes followed by key=value pairs, like
+     "running, health=xxx, pid=yyy".'''
+
+  def __init__(self, raw=None, code=None, error=None, **kwargs):
+    if raw is not None:
+      if raw.startswith(RESP_ERROR + ": "):
+        (self.code, self.error) = raw.split(": ", 1)
+        self.values = None
+      else:
+        bits = raw.split(", ")
+        self.code = bits[0]
+        self.values = { key: val for (key, val) in [pair.split("=") for pair in bits[1:]] }
+        self.error = None
+    else:
+      self.code = RESP_ERROR if error is not None else code
+      self.error = error
+      self.values = kwargs
+    self._validate()
+
+  def _validate(self):
+    if self.code not in RESP_LIST:
+      raise ValueError("invalid response code: '%s'" % self.code)
+
+  def is_unhealthy(self):
+    return self.code == RESP_RUNNING and int(self.values.get("health", -1)) != 0
+
+  def can_start(self):
+    return self.code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]
+
+  def encode(self):
+    if self.error is not None:
+      return "%s: %s" % (RESP_ERROR, self.error)
+    else:
+      out = [self.code] + ["%s=%s" % (k, v) for (k, v) in sorted(self.values.items()) if v is not None]
+      return ", ".join(out)
+
+  def __str__(self):
+    return self.encode()
+
+  def __repr__(self):
+    return "Response(raw=%s)" % repr(self.encode())
+
 
 def _debug(msg):
   global DEBUG
@@ -159,24 +209,6 @@ class _ListenThread(Thread):
     _listen(self.socket_path, self.handler)
 
 
-def _resp_encode(code, error=None, **kwargs):
-  if error:
-    return "%s: %s" % (RESP_ERROR, error)
-  out = [code] + ["%s=%s" % (k, v) for (k, v) in sorted(kwargs.items()) if v is not None]
-  return ", ".join(out)
-
-def _resp_decode(str):
-  if str.startswith(RESP_ERROR):
-    return str.split(": ")
-  else:
-    return str.split(", ")
-
-# TODO Encapsulate encoding/decoding as a proper class.
-def _resp_is_unhealthy(str):
-  bits = _resp_decode(str)
-  return bits[0] == RESP_RUNNING and "health=0" not in bits
-
-
 def _health_check(health_cmd, count=None):
   _debug("monitor: running health check: command: %s" % health_cmd)
   args = shlex.split(health_cmd)
@@ -212,37 +244,37 @@ def _handle_command(cmd, popen, options):
       if health_command:
         health = _health_check(health_command)
       if popen.poll() is None:
-        resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
+        resp = Response(code=RESP_RUNNING, pid=popen.pid, health=health)
       else:
-        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode, health=health)
+        resp = Response(code=RESP_EXITED, returncode=popen.returncode, health=health)
     elif cmd == CMD_WAIT:
       if health_command:
         health = _wait_for_health(popen, options)
       if popen.poll() is None:
-        resp = _resp_encode(RESP_RUNNING, pid=popen.pid, health=health)
+        resp = Response(code=RESP_RUNNING, pid=popen.pid, health=health)
       else:
-        resp = _resp_encode(RESP_EXITED, returncode=popen.returncode, health=health)
+        resp = Response(code=RESP_EXITED, returncode=popen.returncode)
     elif cmd == CMD_STOP:
       if popen.poll() is None:
           # TODO: Handle additional signals besides 15
           popen.terminate()
           popen.wait()
-          resp = _resp_encode(RESP_KILLED, signal=15)
+          resp = Response(code=RESP_KILLED, signal=15)
       else:
-          resp = _resp_encode(RESP_EXITED, returncode=popen.returncode)
+          resp = Response(code=RESP_EXITED, returncode=popen.returncode)
     else:
-      resp = _resp_encode(RESP_INVALID)
+      resp = Response(code=RESP_INVALID)
   except (OSError, IOError) as e:
     _info("exception handling command '%s': %s" % (cmd, e))
-    resp = _resp_encode(RESP_ERROR, error=e)
+    resp = Response(error=e)
 
   _info("monitor: command '%s': response '%s'" % (cmd, resp))
   return resp
 
-def _open_logfile(filename, write_mode, id, shell_cmd, write_header=True):
+def _open_logfile(filename, write_mode, proc_name, shell_cmd, write_header=True):
   f = open(filename, write_mode, LOG_BUFFERING)
   if write_header:
-    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, _UTC_TIMESTAMP, id, shell_cmd))
+    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, _UTC_TIMESTAMP, proc_name, shell_cmd))
     f.flush()
   return f
 
@@ -290,12 +322,12 @@ def daemonize(home_dir="/", umask=077, do_redirect=True, stdout=None, stderr=Non
   # TODO: Change from Python signal handler?
   return True
 
-def daemonize_and_monitor(id, shell_cmd, options):
+def daemonize_and_monitor(proc_name, shell_cmd, options):
   '''Start a monitor daemon that forks the given shell command, listens, and handles commands via a
      control socket.'''
 
   # Deamonize. If we're debugging, keep all debug output on the console.
-  is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % id)
+  is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % proc_name)
 
   if is_daemon:
     _info("monitor: %s" % (options,))
@@ -313,12 +345,12 @@ def daemonize_and_monitor(id, shell_cmd, options):
     if options.stdin:
       fin = open(options.stdin, 'r')
     if options.stdout:
-      fout = _open_logfile(options.stdout, write_mode, id, shell_cmd, write_header=True)
+      fout = _open_logfile(options.stdout, write_mode, proc_name, shell_cmd, write_header=True)
     if options.stderr:
       if options.stderr == options.stdout:
         ferr = fout
       else:
-        ferr = _open_logfile(options.stderr, write_mode, id, shell_cmd, write_header=True)
+        ferr = _open_logfile(options.stderr, write_mode, proc_name, shell_cmd, write_header=True)
 
     # Start process, tracking any immediate errors.
     try:
@@ -332,14 +364,14 @@ def daemonize_and_monitor(id, shell_cmd, options):
       _info("monitor: %s" % error)
 
     # Start listener on fresh Unix domain socket
-    socket_path = SOCKET_PATH_PAT % id
+    socket_path = SOCKET_PATH_PAT % proc_name
     _rm_socket_path(socket_path, silent=False)
 
     # If there was an error starting the process, communicate that to original client.
     if popen:
-      handler = lambda cmd: _handle_command(cmd, popen, options)
+      handler = lambda cmd: _handle_command(cmd, popen, options).encode()
     else:
-      handler = lambda cmd: _resp_encode(RESP_ERROR, error=error)
+      handler = lambda cmd: Response(error=error).encode()
 
     listen_thread = _ListenThread(socket_path, handler)
     listen_thread.start()
@@ -355,17 +387,17 @@ def daemonize_and_monitor(id, shell_cmd, options):
     sys.exit(0)
 
   else:
-    _wait_for_connect(id)
+    _wait_for_connect(proc_name)
 
 
-def send_command(id, cmd):
+def send_command(proc_name, cmd):
   '''Send a command to the monitor process with the given id via its control socket.'''
 
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
   try:
     # Set a short timeout on connect, in case process not running. Once we connect, disable the timeout.
     sock.settimeout(SOCKET_TIMEOUT)
-    sock.connect(SOCKET_PATH_PAT % id)
+    sock.connect(SOCKET_PATH_PAT % proc_name)
     sock.settimeout(None)
     _debug("client: connected")
     sock.sendall(cmd + EOM)
@@ -374,75 +406,74 @@ def send_command(id, cmd):
       # A rare race or a bug.
       raise NotRunningException("no data from monitor")
     _debug("client: %s: %s" % (cmd, data))
-    return data
+    return Response(raw=data)
   except socket.error as msg:
     raise NotRunningException("socket error: %s" % msg)
   finally:
     sock.close()
 
-def _wait_for_connect(id):
+def _wait_for_connect(proc_name):
   _debug("client: wait: checking for connect...")
   timeout = time.time() + SOCKET_TIMEOUT
   exc = None
   while time.time() < timeout:
     try:
-      status = send_command(id, CMD_STATUS)
+      send_command(proc_name, CMD_STATUS)
       _debug("client: wait: connect success")
       return
     except NotRunningException as e:
       exc = e
       time.sleep(.1)
-  raise OtherException("Timeout connecting to monitor: %s" % exc)
+  raise OtherException("timeout connecting to monitor: %s" % exc)
 
 
-def start(id, shell_cmd, options, strict=False):
+def start(proc_name, shell_cmd, options, strict=False):
   '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
-  prev_status = status(id)
-  prev_code = _resp_decode(prev_status)[0]
-  if prev_code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]:
-    daemonize_and_monitor(id, shell_cmd, options)
+  prev_status = status(proc_name)
+  if prev_status.can_start():
+    daemonize_and_monitor(proc_name, shell_cmd, options)
     if options.ensure_healthy:
       _debug("monitor: ensure_healthy is set, waiting for health")
-      resp = send_command(id, CMD_WAIT)
+      resp = send_command(proc_name, CMD_WAIT)
       # TODO: Replace with proper response parsing.
-      if _resp_is_unhealthy(resp):
+      if resp.is_unhealthy():
         _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
-        resp = send_command(id, CMD_STOP)
+        resp = send_command(proc_name, CMD_STOP)
       else:
         _debug("monitor: ensure_healthy is set and process is still healthy (%s)" % resp)
     else:
-      resp = send_command(id, CMD_STATUS)
+      resp = send_command(proc_name, CMD_STATUS)
   else:
     if strict:
-      raise AlreadyRunningException("Process already running (%s)" % prev_status)
+      raise AlreadyRunningException("process already running (%s)" % prev_status)
     else:
       resp = prev_status
   return resp
 
-def status(id):
+def status(proc_name):
   '''Return status of the process with the given id.'''
   try:
-    return send_command(id, CMD_STATUS)
+    return send_command(proc_name, CMD_STATUS)
   except NotRunningException:
-    return RESP_STOPPED
+    return Response(code=RESP_STOPPED)
 
-def wait(id):
+def wait(proc_name):
   '''Same as status, but if process is running, try to wait until it is healthy.'''
   try:
-    return send_command(id, CMD_WAIT)
+    return send_command(proc_name, CMD_WAIT)
   except NotRunningException:
-    return RESP_STOPPED
+    return Response(code=RESP_STOPPED)
 
-def stop(id, strict=False):
+def stop(proc_name, strict=False):
   '''Stop the command with the given id. If strict is true, raise exception if process already is stopped.'''
   try:
-    return send_command(id, CMD_STOP)
+    return send_command(proc_name, CMD_STOP)
   except NotRunningException as e:
     if strict:
       raise
     else:
-      return RESP_STOPPED
+      return Response(code=RESP_STOPPED)
 
 
 def _locate_config_file():
@@ -465,16 +496,16 @@ def _parse_config(config, section, option, target_type):
   elif target_type == float:
     return config.getfloat(section, option)
 
-def _read_config_file(id, config_file, target_types):
+def _read_config_file(proc_name, config_file, target_types):
   out = {}
   try:
     if config_file:
       config = ConfigParser.RawConfigParser()
       config.read(config_file)
-      for (key, str_value) in config.items(id):
+      for (key, str_value) in config.items(proc_name):
         if key not in Options._fields:
-          raise ValueError("Unrecognized config key: '%s' in '%s'" % (key, config_file))
-        out[key] = _parse_config(config, id, key, target_types[key])
+          raise ValueError("unrecognized config key: '%s' in '%s'" % (key, config_file))
+        out[key] = _parse_config(config, proc_name, key, target_types[key])
   except ConfigParser.NoSectionError:
     pass
   return out
@@ -486,6 +517,17 @@ def _expand_variables(template_str):
   else:
     return Template(template_str).substitute(os.environ)
 
+def _execute(proc_name, control_cmd, options):
+  if control_cmd == CMD_START:
+    response = start(proc_name, options.command, options=options, strict=options.strict)
+  elif control_cmd == CMD_STOP:
+    response = stop(proc_name, strict=options.strict)
+  elif control_cmd == CMD_STATUS:
+    response = status(proc_name)
+  elif control_cmd == CMD_WAIT:
+    response = wait(proc_name)
+  return response
+
 # These are the options configurable by file or command line.
 Options = namedtuple("Options", "command health_command health_count health_delay ensure_healthy dir stdin stdout stderr append linger strict")
 
@@ -494,8 +536,8 @@ OPTION_DEFAULTS = Options(command=None, health_command=None, health_count=5, hea
 
 def main():
   parser = argparse.ArgumentParser(description=DESCRIPTION, version=VERSION, epilog="\n" + __doc__)
-  parser.add_argument("control_cmd", help="command", choices=CMD_LIST)
-  parser.add_argument("id", help="unique identifier for this process")
+  parser.add_argument("control_cmd", help="control command", choices=CMD_LIST)
+  parser.add_argument("proc_name", help="unique alphanumeric name for this process")
   parser.add_argument("-c", "--command", help="with start: full command to start process, with all arguments, in shell syntax")
   parser.add_argument("--health-command", help="with start: full command to perform health check")
   parser.add_argument("--health-count", help="with start: max tries for health check", type=int)
@@ -522,7 +564,7 @@ def main():
     actions = { action.dest: action for action in parser._actions if action.dest in Options._fields }
     target_types = { action.dest: (action.type or type(action.const or "")) for action in actions.values() }
 
-    file_options = _read_config_file(args.id, config_file, target_types)
+    file_options = _read_config_file(args.proc_name, config_file, target_types)
 
     def was_explicitly_set(action, val):
       return (type(action) != argparse._StoreTrueAction and type(action) != argparse._StoreFalseAction) or val != action.default
@@ -550,27 +592,21 @@ def main():
                                health_command=_expand_variables(options.health_command),
                                dir=_expand_variables(options.dir) or os.getcwd())
 
-    if not re.compile("^[\\w-]+$").match(args.id):
-      parser.error("Invalid process identifier '%s'; must be alphanumeric, with only underscores or dashes" % args.id)
+    if not re.compile("^[\\w-]+$").match(args.proc_name):
+      parser.error("Invalid process name '%s'; must be alphanumeric, with only underscores or dashes" % args.proc_name)
     if args.control_cmd == "start" and not options.command:
-      parser.error("Must specify --command with 'start' or supply a command in the config file for this id ('%s')" % args.id)
+      parser.error("Must specify --command with 'start' or supply a command in the config file for this id ('%s')" % args.proc_name)
     if not os.path.isdir(options.dir):
       parser.error("Not a directory: %s" % options.dir)
 
-    if args.control_cmd == CMD_START:
-      result = start(args.id, options.command, options=options, strict=options.strict)
-    elif args.control_cmd == CMD_STOP:
-      result = stop(args.id, strict=options.strict)
-    elif args.control_cmd == CMD_STATUS:
-      result = status(args.id)
-    elif args.control_cmd == CMD_WAIT:
-      result = wait(args.id)
-    print(result)
+    response = _execute(args.proc_name, args.control_cmd, options)
+    print(response.encode())
+    # TODO: return code
 
   except AlreadyRunningException as e:
-    _die("process '%s' is already running" % args.id, code=2)
+    _die("process '%s' is already running" % args.proc_name, code=2)
   except NotRunningException as e:
-    _die("process '%s' is not running" % args.id, code=3)
+    _die("process '%s' is not running" % args.proc_name, code=3)
   except ValueError as e:
     _die(str(e), code=4)
 

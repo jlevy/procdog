@@ -111,7 +111,7 @@ Some notes on this:
 It's possible to avoid typing by putting most options in a configuration file:
 
 ```
-# Procdog config file. Each section is a process identifier.
+# Procdog config file. Each section is a process name.
 [backend]
 command=java -classpath my-backend.jar com.example.BackendServer server config.yml
 health_command=curl http://localhost:8080/ping

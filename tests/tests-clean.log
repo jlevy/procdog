@@ -10,7 +10,7 @@ usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
                [--linger LINGER] [--strict] [--config CONFIG] [--debug]
-               {start,status,wait,stop} id
+               {start,status,wait,stop} proc_name
 procdog: error: argument control_cmd: invalid choice: 'blah' (choose from 'start', 'status', 'wait', 'stop')
 (got expected error: status 2)
 
@@ -20,7 +20,7 @@ usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
                [--linger LINGER] [--strict] [--config CONFIG] [--debug]
-               {start,status,wait,stop} id
+               {start,status,wait,stop} proc_name
 procdog: error: too few arguments
 (got expected error: status 2)
 
@@ -32,8 +32,8 @@ usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
                [--linger LINGER] [--strict] [--config CONFIG] [--debug]
-               {start,status,wait,stop} id
-procdog: error: Invalid process identifier 'foo@bar'; must be alphanumeric, with only underscores or dashes
+               {start,status,wait,stop} proc_name
+procdog: error: Invalid process name 'foo@bar'; must be alphanumeric, with only underscores or dashes
 (got expected error: status 2)
 
 # Start, stop, and status on a long-lived process.
