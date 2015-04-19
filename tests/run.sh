@@ -22,6 +22,7 @@ cat $full_log \
   | sed 's/[0-9.:T-]*Z/_TIMESTAMP_/g' \
   | sed 's/[a-zA-Z0-9/]*procdog.cfg/_PATH_\/procdog.cfg/g' \
   | sed 's/\/private\/tmp/\/tmp/g' \
+  | sed 's/procdog [(][0-9]*[)]/procdog (_PID_)/g' \
   > $clean_log
 
 echo "Tests done."

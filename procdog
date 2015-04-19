@@ -172,13 +172,11 @@ def _debug(msg):
   global DEBUG
   if DEBUG:
     with _LOG_LOCK:
-      # TODO: print("%s (%s): debug: %s" % (NAME, os.getpid(), msg), file=sys.stderr)
-      print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
+      print("%s (%s): debug: %s" % (NAME, os.getpid(), msg), file=sys.stderr)
 
 def _info(msg):
   with _LOG_LOCK:
-    # TODO: print("%s (%s): %s" % (NAME, os.getpid(), msg), file=sys.stderr)
-    print("%s: %s" % (NAME, msg), file=sys.stderr)
+    print("%s (%s): %s" % (NAME, os.getpid(), msg), file=sys.stderr)
 
 def _die(msg, code=1):
   print("%s: error: %s" % (NAME, msg), file=sys.stderr)
