@@ -35,7 +35,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -172,10 +172,12 @@ def _debug(msg):
   global DEBUG
   if DEBUG:
     with _LOG_LOCK:
+      # TODO: print("%s (%s): debug: %s" % (NAME, os.getpid(), msg), file=sys.stderr)
       print("%s: debug: %s" % (NAME, msg), file=sys.stderr)
 
 def _info(msg):
   with _LOG_LOCK:
+    # TODO: print("%s (%s): %s" % (NAME, os.getpid(), msg), file=sys.stderr)
     print("%s: %s" % (NAME, msg), file=sys.stderr)
 
 def _die(msg, code=1):
@@ -312,10 +314,10 @@ def _handle_command(cmd, popen, options):
   _info("monitor: command '%s': response '%s'" % (cmd, resp))
   return resp
 
-def _open_logfile(filename, write_mode, proc_name, shell_cmd, write_header=True):
+def _open_logfile(filename, write_mode, proc_name, log_options=None):
   f = open(filename, write_mode, LOG_BUFFERING)
-  if write_header:
-    f.write("%s: %s Starting process '%s' with command: %s\n" % (NAME, _UTC_TIMESTAMP, proc_name, shell_cmd))
+  if log_options:
+    f.write("%s: %s Starting process '%s' with options: %s\n" % (NAME, _UTC_TIMESTAMP, proc_name, log_options))
     f.flush()
   return f
 
@@ -376,8 +378,7 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
   is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % proc_name)
 
   if is_daemon:
-    _info("monitor: %s" % (options,))
-    _info("monitor: starting shell command: %s" % shell_cmd)
+    _info("monitor: starting with %s" % (options,))
     popen = None
     error = None
 
@@ -391,12 +392,12 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
     if options.stdin:
       fin = open(options.stdin, 'r')
     if options.stdout:
-      fout = _open_logfile(options.stdout, write_mode, proc_name, shell_cmd, write_header=True)
+      fout = _open_logfile(options.stdout, write_mode, proc_name, log_options=options)
     if options.stderr:
       if options.stderr == options.stdout:
         ferr = fout
       else:
-        ferr = _open_logfile(options.stderr, write_mode, proc_name, shell_cmd, write_header=True)
+        ferr = _open_logfile(options.stderr, write_mode, proc_name, log_options=options)
 
     # Start process, tracking any immediate errors.
     try:
@@ -557,7 +558,10 @@ def _expand_variables(template_str):
   if template_str is None:
     return None
   else:
-    return Template(template_str).substitute(os.environ)
+    try:
+      return Template(template_str).substitute(os.environ)
+    except Exception as e:
+      raise ValueError("could not expand environment variable names in command '%s': %s" % (template_str, e))
 
 def _execute(proc_name, control_cmd, options):
   if control_cmd == CMD_START:
@@ -660,6 +664,18 @@ if __name__ == '__main__':
   main()
 
 # TODO:
+# - bug: second connection from client while process starting
+#     option 1: find a way for monitor to accept the connection right away, so we know monitor is already starting process/health check
+#     option 2: use file locking and/or open lock file with O_EXCL;
+#     http://stackoverflow.com/questions/688343/reference-for-proper-handling-of-pid-file-on-unix
+#     http://www.man7.org/tlpi/code/online/dist/filelock/create_pid_file.c.html
+#     also write test with process with slow health check, to validate this
+# - handle corner case scenario:
+#     process already started externally without procdog, so process tarted with procdog fails,
+#     but health check passes immediately since process is listening
+# - log pid in all messages
+# - remove wait command
+# - add restart command
 # - return health code as exit code on wait?
 # - figure out commands for wait-for-health vs wait-for-exit
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'

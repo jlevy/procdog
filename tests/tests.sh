@@ -108,6 +108,8 @@ cat tmp.stdout.out1
 cat tmp.stderr.out1
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
+procdog start out1 --command 'echo hello $BADENVVAR' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1 || expect_error
+
 # Read from input and write stderr and stdout to same output.
 echo input > tmp.stdin.out2
 procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2 || expect_error
