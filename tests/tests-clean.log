@@ -409,8 +409,8 @@ procdog (_PID_): debug: command-line options: {'command': 'no-such-command'}
 procdog (_PID_): debug: combined options: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog (_PID_): debug: client: wait: checking for connect...
 procdog (_PID_): monitor: starting with Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
-procdog (_PID_): monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 procdog (_PID_): monitor: listening on /var/tmp/procdog.err1.sock
+procdog (_PID_): monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
@@ -514,8 +514,8 @@ procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0
 procdog (_PID_): debug: client: wait: connect success
-procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0

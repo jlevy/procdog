@@ -28,6 +28,7 @@ from collections import namedtuple
 from string import Template
 from datetime import datetime
 from threading import Thread, Lock
+from Queue import Queue
 # The subprocess module has known threading issues, so prefer subprocess32.
 try:
   import subprocess32 as subprocess
@@ -35,7 +36,7 @@ except ImportError:
   import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.8"
+VERSION = "0.1.9"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -81,6 +82,7 @@ SOCKET_TIMEOUT = 3
 
 DEBUG = False
 
+# Log buffering. 0=unbuffered, 1=line buffered, otherwise the buffer size.
 LOG_BUFFERING = 1
 
 _UTC_TIMESTAMP = datetime.utcnow().isoformat() + 'Z'
@@ -216,38 +218,48 @@ def _recv_msg(sock):
       break
   return data.split(EOM)[0].strip()
 
-def _listen(socket_path, handler):
-  '''Listen on Unix domain socket, calling handler() on the received commands and returning
-     the results.'''
 
-  sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-  sock.bind(socket_path)
-  sock.listen(16)
-  _info("monitor: listening on %s" % socket_path)
-
-  while True:
-    connection, client_address = sock.accept()
-    _debug("monitor: listen accept")
-    try:
-      cmd = _recv_msg(connection)
-      _debug("monitor: received command '%s'" % cmd)
-      response = handler(cmd)
-      connection.sendall(response + EOM)
-    finally:
-      connection.close()
-
-# We use a single listening thread (not a pool) since this is thread is only to monitor a single
-# process. All request handling, including the wait with health check, should happen serially.
 class _ListenThread(Thread):
-  def __init__(self, socket_path, handler):
+  '''Listen on Unix domain socket, adding all connections to the given queue.'''
+
+  def __init__(self, socket_path, queue):
     Thread.__init__(self)
     self.socket_path = socket_path
-    self.handler = handler
-    # Do not prevent process termination on shutdown.
-    self.daemon = True
+    self.queue = queue
+    self.daemon = True  # Do not prevent process termination on shutdown.
 
   def run(self):
-    _listen(self.socket_path, self.handler)
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(self.socket_path)
+    sock.listen(16)
+    _info("monitor: listening on %s" % self.socket_path)
+
+    while True:
+      connection, client_address = sock.accept()
+      _debug("monitor: listen accept")
+      self.queue.put(connection)
+
+
+class _HandleThread(Thread):
+  '''We use a single thread (not a pool) since this is thread is only to monitor a single process.
+     All request handling, including the wait with health check, happen serially.'''
+
+  def __init__(self, queue, handler):
+    Thread.__init__(self)
+    self.queue = queue
+    self.handler = handler
+    self.daemon = True  # Do not prevent process termination on shutdown.
+
+  def run(self):
+    while True:
+      connection = self.queue.get(True)
+      try:
+        cmd = _recv_msg(connection)
+        _debug("monitor: received command '%s'" % cmd)
+        response = self.handler(cmd)
+        connection.sendall(response + EOM)
+      finally:
+        connection.close()
 
 
 def _health_check(health_cmd, count=None):
@@ -377,6 +389,12 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
 
   if is_daemon:
     _info("monitor: starting with %s" % (options,))
+
+    # Start listening immediately so all clients know we're already running.
+    queue = Queue()
+    listen_thread = _ListenThread(socket_path, queue)
+    listen_thread.start()
+
     popen = None
     error = None
 
@@ -414,8 +432,8 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
     else:
       handler = lambda cmd: Response(error=error).encode()
 
-    listen_thread = _ListenThread(socket_path, handler)
-    listen_thread.start()
+    handle_thread = _HandleThread(queue, handler)
+    handle_thread.start()
 
     if popen:
       exit_code = popen.wait()
@@ -669,13 +687,14 @@ if __name__ == '__main__':
 #     http://www.man7.org/tlpi/code/online/dist/filelock/create_pid_file.c.html
 #     also write test with process with slow health check, to validate this
 # - handle corner case scenario:
-#     process already started externally without procdog, so process tarted with procdog fails,
+#     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening
-# - log pid in all messages
 # - remove wait command
 # - add restart command
 # - return health code as exit code on wait?
 # - figure out commands for wait-for-health vs wait-for-exit
+# - auto restart n times within k seconds on process dying
+# - pipe log output to process (like logrotate) if target starts with "|"
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - --shell option that invokes full shell parsing of command and health_command (and disable Template-based expansion)
