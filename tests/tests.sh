@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # Test script. Output of this script can be saved and compared to test for regressions.
+# Double-spacing between commands here makes the script output easier to read.
 
 # We turn on exit on error, so that any status code changes cause a test failure.
 set -e
@@ -86,6 +87,18 @@ procdog start ensure1 --command "sleep 100" --health-command "true" --ensure-hea
 procdog stop ensure1
 
 procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy || expect_error
+
+# Test that a slow health check doesn't affect listening.
+procdog start slow-health --command "sleep 100" --health-command "sleep 4" >/dev/null 2>&1 &
+# TODO: Once strict file locking is implemented, remove this sleep to test rapid double-starting.
+sleep 1
+
+procdog start slow-health --command "sleep 100" --health-command "sleep 4"
+
+procdog status slow-health
+
+procdog stop slow-health
+
 
 # Short-lived processes and error conditions.
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*

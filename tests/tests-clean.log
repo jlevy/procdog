@@ -401,6 +401,36 @@ procdog (_PID_): debug: client: exit code 6 (based on 'killed, signal=15' with s
 killed, signal=15
 (got expected error: status 6)
 
+# Test that a slow health check doesn't affect listening.
+procdog start slow-health --command "sleep 100" --health-command "sleep 4" >/dev/null 2>&1 &
+# TODO: Once strict file locking is implemented, remove this sleep to test rapid double-starting.
+sleep 1
+
+procdog start slow-health --command "sleep 100" --health-command "sleep 4"
+procdog (_PID_): debug: command-line options: {'command': 'sleep 100', 'health_command': 'sleep 4'}
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='sleep 4', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: client: status: running, health=0, pid=_PID_
+procdog (_PID_): debug: client: exit code 0 (based on 'running, health=0, pid=_PID_' with strict=False and ensure_healthy=False)
+running, health=0, pid=_PID_
+
+procdog status slow-health
+procdog (_PID_): debug: command-line options: {}
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: client: status: running, health=0, pid=_PID_
+procdog (_PID_): debug: client: exit code 0 (based on 'running, health=0, pid=_PID_' with strict=False and ensure_healthy=False)
+running, health=0, pid=_PID_
+
+procdog stop slow-health
+procdog (_PID_): debug: command-line options: {}
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: client: stop: killed, signal=15
+procdog (_PID_): debug: client: exit code 0 (based on 'killed, signal=15' with strict=False and ensure_healthy=False)
+killed, signal=15
+
+
 # Short-lived processes and error conditions.
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
@@ -409,8 +439,8 @@ procdog (_PID_): debug: command-line options: {'command': 'no-such-command'}
 procdog (_PID_): debug: combined options: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
 procdog (_PID_): debug: client: wait: checking for connect...
 procdog (_PID_): monitor: starting with Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
-procdog (_PID_): monitor: listening on /var/tmp/procdog.err1.sock
 procdog (_PID_): monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
+procdog (_PID_): monitor: listening on /var/tmp/procdog.err1.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
@@ -514,8 +544,8 @@ procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0
 procdog (_PID_): debug: client: wait: connect success
-procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0

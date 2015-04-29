@@ -689,6 +689,7 @@ if __name__ == '__main__':
 # - handle corner case scenario:
 #     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening
+# - in non-strict mode expose via a second variable whether process was already started/stopped
 # - remove wait command
 # - add restart command
 # - return health code as exit code on wait?
