@@ -43,6 +43,9 @@ procdog wait long || expect_error
 procdog start long --command "sleep 5" --health-command "true"
 sleep 2
 
+# Check sock and lock files.
+ls -1 /var/tmp/procdog.long.*
+
 procdog status long
 
 procdog wait long
@@ -52,6 +55,8 @@ procdog start long --command "sleep 5" --health-command "true"
 procdog start long --command "sleep 5" --health-command "true" --strict || expect_error
 
 procdog stop long
+
+ls -1 /var/tmp/procdog.long.*
 
 procdog stop long
 

@@ -23,7 +23,7 @@ For further documentation, see: https://github.com/jlevy/procdog
 # Created: 2015-03-14
 
 from __future__ import print_function
-import socket, sys, os, time, shlex, ConfigParser, argparse, re
+import socket, sys, os, errno, time, shlex, ConfigParser, argparse, re
 from collections import namedtuple
 from string import Template
 from datetime import datetime
@@ -40,7 +40,7 @@ VERSION = "0.1.9"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
-
+LOCK_PATH_PAT = "/var/tmp/" + NAME + ".%s.lock"
 LOG_PATH_PAT = "/var/tmp/" + NAME + ".%s.log"
 
 CONFIG_FILE = "procdog.cfg"
@@ -94,6 +94,69 @@ _NULL_OUTPUT = open(os.devnull, "w")
 # Lock is only local to process, but still helps serialize multiple monitor thread logs.
 _LOG_LOCK = Lock()
 
+# Exceptions
+class StateException(Exception):
+    pass
+class NotRunningException(StateException):
+    pass
+class AlreadyRunningException(StateException):
+    pass
+class OtherException(StateException):
+    pass
+
+
+def unlink_path(path, silent=False):
+  '''Slightly more robust unlink with a silent fail option.'''
+  if silent:
+    try:
+      os.unlink(path)
+    except:
+      pass
+  else:
+    try:
+      os.unlink(path)
+    except OSError:
+      if os.path.exists(path):
+        raise
+
+def file_lock_acquire(path, contents=""):
+  '''Try to acquire a file-based lock, creating a file only if it does not exist. This is a simple approach
+     that should be relatively cross platform, without flock() or fcntl(), and simply uses POSIX O_EXCL.
+     No timeouts. Returns with True if the lock is acquired or False if it is not available. More
+     discussion on related topics:
+     http://stackoverflow.com/questions/489861/locking-a-file-in-python
+     http://stackoverflow.com/questions/688343/reference-for-proper-handling-of-pid-file-on-unix
+  '''
+  try:
+    fd = os.open(path, os.O_CREAT|os.O_EXCL|os.O_RDWR, 0o644)
+    with os.fdopen(fd, 'a') as f:
+      f.write(contents)
+    return True
+  except OSError as e:
+    if e.errno == errno.EEXIST:
+      return False
+    else:
+      raise OSError("unexpected error locking file '%s': %s" % (path, e))
+
+def file_lock_release(path):
+  unlink_path(path, silent=False)
+
+
+# FIXME use this
+class Process:
+  '''Name and tracking data for the process to be managed.'''
+  def __init__(self, name):
+    self.name = name
+    self.socket_path = SOCKET_PATH_PAT % name
+    self.lock_path = LOCK_PATH_PAT % name
+    self.log_path = LOG_PATH_PAT % name
+
+  def acquire_lock(self):
+    return file_lock_acquire(self.lock_path)
+
+  def release_lock(self):
+    return file_lock_release(self.lock_path)
+
 
 class Response:
   '''Represents responses sent by the monitor daemon. Responses are errors like
@@ -128,9 +191,6 @@ class Response:
 
   def is_healthy(self):
     return self.is_running() and int(self.values.get("health", -1)) == 0
-
-  def can_start(self):
-    return self.code in [RESP_STOPPED, RESP_EXITED, RESP_KILLED]
 
   def exit_code(self, control_cmd, strict=False, ensure_healthy=False):
     if control_cmd == CMD_WAIT:
@@ -184,29 +244,6 @@ def _die(msg, code=1):
   print("%s: error: %s" % (NAME, msg), file=sys.stderr)
   sys.exit(code)
 
-
-class StateException(Exception):
-    pass
-class NotRunningException(StateException):
-    pass
-class AlreadyRunningException(StateException):
-    pass
-class OtherException(StateException):
-    pass
-
-
-def _rm_socket_path(path, silent=False):
-  if silent:
-    try:
-      os.unlink(path)
-    except:
-      pass
-  else:
-    try:
-      os.unlink(path)
-    except OSError:
-      if os.path.exists(path):
-        raise
 
 def _recv_msg(sock):
   '''Receive a (short) newline-delimited command. Trims whitespace.'''
@@ -333,9 +370,10 @@ def _open_logfile(filename, write_mode, proc_name, log_options=None):
 
 
 def daemonize(home_dir="/", umask=077, do_redirect=True, stdout=None, stderr=None):
-  '''Do a standard double fork to daemonize. Based on portions of
-     http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/www.boxedice.com and
-     https://github.com/serverdensity/python-daemon'''
+  '''Do a standard double fork to daemonize. Based on portions of:
+     http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/www.boxedice.com
+     https://github.com/serverdensity/python-daemon
+  '''
 
   # Do first fork and return control to calling process.
   try:
@@ -375,6 +413,7 @@ def daemonize(home_dir="/", umask=077, do_redirect=True, stdout=None, stderr=Non
   # TODO: Change from Python signal handler?
   return True
 
+
 def daemonize_and_monitor(proc_name, shell_cmd, options):
   '''Start a monitor daemon that forks the given shell command, listens, and handles commands via a
      control socket.'''
@@ -382,7 +421,7 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
   # Remove the socket path now, before forking, so that client can't connect until
   # daemon is running.
   socket_path = SOCKET_PATH_PAT % proc_name
-  _rm_socket_path(socket_path, silent=False)
+  unlink_path(socket_path, silent=False)
 
   # Deamonize. If we're debugging, keep all debug output on the console.
   is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % proc_name)
@@ -390,59 +429,66 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
   if is_daemon:
     _info("monitor: starting with %s" % (options,))
 
-    # Start listening immediately so all clients know we're already running.
-    queue = Queue()
-    listen_thread = _ListenThread(socket_path, queue)
-    listen_thread.start()
-
-    popen = None
-    error = None
-
-    # Open file descriptors for stdout/stderr if needed. We always set stdin to /dev/null.
-    # TODO: Consider closing of these on process exit.
-    write_mode = 'a' if options.append else 'w'
-    fin = _NULL_INPUT
-    fout = None
-    ferr = None
-    # Note paths here are relative to options.dir.
-    if options.stdin:
-      fin = open(options.stdin, 'r')
-    if options.stdout:
-      fout = _open_logfile(options.stdout, write_mode, proc_name, log_options=options)
-    if options.stderr:
-      if options.stderr == options.stdout:
-        ferr = fout
-      else:
-        ferr = _open_logfile(options.stderr, write_mode, proc_name, log_options=options)
-
-    # Start process, tracking any immediate errors.
     try:
-      args = shlex.split(shell_cmd)
-      popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
-    except OSError as e:
-      error = "Failed to start: %s: %s" % (e, shell_cmd)
-      _info("monitor: %s" % error)
-    if popen and popen.poll() is not None:
-      error = "Failure starting (code %s): %s" % (popen.poll(), shell_cmd)
-      _info("monitor: %s" % error)
+      # Start listening immediately so any client needn't wait long to know we're already running.
+      queue = Queue()
+      listen_thread = _ListenThread(socket_path, queue)
+      listen_thread.start()
 
-    # If there was an error starting the process, communicate that to original client.
-    if popen:
-      handler = lambda cmd: _handle_command(cmd, popen, options).encode()
-    else:
-      handler = lambda cmd: Response(error=error).encode()
+      popen = None
+      error = None
 
-    handle_thread = _HandleThread(queue, handler)
-    handle_thread.start()
+      # Open file descriptors for stdout/stderr if needed. We always set stdin to /dev/null.
+      # TODO: Consider closing of these on process exit.
+      write_mode = 'a' if options.append else 'w'
+      fin = _NULL_INPUT
+      fout = None
+      ferr = None
+      # Note paths here are relative to options.dir.
+      if options.stdin:
+        fin = open(options.stdin, 'r')
+      if options.stdout:
+        fout = _open_logfile(options.stdout, write_mode, proc_name, log_options=options)
+      if options.stderr:
+        if options.stderr == options.stdout:
+          ferr = fout
+        else:
+          ferr = _open_logfile(options.stderr, write_mode, proc_name, log_options=options)
 
-    if popen:
-      exit_code = popen.wait()
-      _info("monitor: process done (code %s), exiting" % exit_code)
+      # Start process, tracking any immediate errors.
+      try:
+        args = shlex.split(shell_cmd)
+        popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
+      except OSError as e:
+        error = "Failed to start: %s: %s" % (e, shell_cmd)
+        _info("monitor: %s" % error)
+      if popen and popen.poll() is not None:
+        error = "Failure starting (code %s): %s" % (popen.poll(), shell_cmd)
+        _info("monitor: %s" % error)
+
+      # If there was an error starting the process, communicate that to original client.
+      if popen:
+        handler = lambda cmd: _handle_command(cmd, popen, options).encode()
+      else:
+        handler = lambda cmd: Response(error=error).encode()
+
+      handle_thread = _HandleThread(queue, handler)
+      handle_thread.start()
+
+      if popen:
+        exit_code = popen.wait()
+        _info("monitor: process done (code %s), exiting" % exit_code)
+
+    finally:
+      # We release the lock for standard situations but don't install a signal handler, since it's
+      # probably best for clarity if the lock file is in place if something strange happened
+      # (like a kill directly on procdog).
+      file_lock_release(LOCK_PATH_PAT % proc_name)
 
     time.sleep(options.linger)
     # Just for cleanliness, best effort at removing the path when we're done; though if it remains
     # there we will just remove and re-bind on next startup.
-    _rm_socket_path(socket_path, silent=True)
+    unlink_path(socket_path, silent=True)
     sys.exit(0)
 
   else:
@@ -450,7 +496,7 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
 
 
 def send_command(proc_name, cmd):
-  '''Send a command to the monitor process with the given id via its control socket.'''
+  '''Send a command to the monitor process with the given name via its control socket.'''
 
   sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
   try:
@@ -485,12 +531,14 @@ def _wait_for_connect(proc_name):
       time.sleep(.1)
   raise OtherException("timeout connecting to monitor: %s" % exc)
 
-
 def start(proc_name, shell_cmd, options, strict=False):
   '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
-  prev_status = status(proc_name)
-  if prev_status.can_start():
+
+  lock_path = LOCK_PATH_PAT % proc_name
+  lock_acquired = file_lock_acquire(lock_path)
+
+  if lock_acquired:
     daemonize_and_monitor(proc_name, shell_cmd, options)
     if options.ensure_healthy:
       _debug("monitor: ensure_healthy is set, waiting for health")
@@ -505,9 +553,9 @@ def start(proc_name, shell_cmd, options, strict=False):
       resp = send_command(proc_name, CMD_STATUS)
   else:
     if strict:
-      raise AlreadyRunningException("process already running (%s)" % prev_status)
+      raise AlreadyRunningException("process already running (to override, remove lock at %s)" % lock_path)
     else:
-      resp = prev_status
+      resp = send_command(proc_name, CMD_STATUS)
   return resp
 
 def status(proc_name):
@@ -673,7 +721,7 @@ def main():
     _die("process '%s' is already running" % args.proc_name, code=EXIT_ALREADY_RUNNING)
   except NotRunningException as e:
     _die("process '%s' is not running" % args.proc_name, code=EXIT_NOT_RUNNING)
-  except ValueError as e:
+  except (ValueError, OSError) as e:
     _die(str(e), code=EXIT_UNKNOWN)
 
 if __name__ == '__main__':
@@ -692,10 +740,13 @@ if __name__ == '__main__':
 # - in non-strict mode expose via a second variable whether process was already started/stopped
 # - remove wait command
 # - add restart command
-# - return health code as exit code on wait?
-# - figure out commands for wait-for-health vs wait-for-exit
-# - auto restart n times within k seconds on process dying
+# - service support
+#     add a symlink target for /etc/init.d to auto-convert to a service script (like /lib/init/upstart-job)
+# - add restart command
+#     add loading from /etc/procdog.conf and/or /etc/procdog.d/*
 # - pipe log output to process (like logrotate) if target starts with "|"
+# - auto restart n times within k seconds on process dying
+# - figure out commands for wait-for-health vs wait-for-exit
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - --shell option that invokes full shell parsing of command and health_command (and disable Template-based expansion)
