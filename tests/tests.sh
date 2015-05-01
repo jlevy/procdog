@@ -95,9 +95,9 @@ procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-he
 
 # Test that a slow health check doesn't affect listening.
 procdog start slow-health --command "sleep 100" --health-command "sleep 4" >/dev/null 2>&1 &
-# TODO: Once strict file locking is implemented, remove this sleep to test rapid double-starting.
-sleep 1
 
+# We sleep only a little so the previous command is certain to get the file lock first.
+sleep 0.1
 procdog start slow-health --command "sleep 100" --health-command "sleep 4"
 
 procdog status slow-health

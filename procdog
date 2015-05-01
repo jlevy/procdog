@@ -537,6 +537,7 @@ def start(proc_name, shell_cmd, options, strict=False):
 
   lock_path = LOCK_PATH_PAT % proc_name
   lock_acquired = file_lock_acquire(lock_path)
+  _debug("client: acquired lock: %s: %s" % (lock_acquired, lock_path))
 
   if lock_acquired:
     daemonize_and_monitor(proc_name, shell_cmd, options)
@@ -728,12 +729,6 @@ if __name__ == '__main__':
   main()
 
 # TODO:
-# - bug: second connection from client while process starting
-#     option 1: find a way for monitor to accept the connection right away, so we know monitor is already starting process/health check
-#     option 2: use file locking and/or open lock file with O_EXCL;
-#     http://stackoverflow.com/questions/688343/reference-for-proper-handling-of-pid-file-on-unix
-#     http://www.man7.org/tlpi/code/online/dist/filelock/create_pid_file.c.html
-#     also write test with process with slow health check, to validate this
 # - handle corner case scenario:
 #     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening
