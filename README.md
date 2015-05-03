@@ -38,8 +38,8 @@ Although it has similar goals, it is a more complex, production-oriented tool wi
 long-lived, centrailized XML-RPC server that monitors processes. Procdog is intended
 to be a single, simple, easy-to-use command that needn't be set up and managed itself
 or run as root. Each use of Procdog is independent and monitors just one process. You
-can even check the Procdog script into your own project for developer convenience,
-since it has no dependencies (besides Python 2.7).
+can even check the Procdog script into your own project so developers can start or
+since it has no dependencies (besides Python 2.7). Note Procdog is also much less mature.
 
 You'll find it useful if you have servers, databases, or other processes you want
 to manage on your personal machine, when developing, in build systems and test
