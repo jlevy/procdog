@@ -33,11 +33,18 @@ simple and obvious to use, and cross-platform. Processes are independent of the
 shell used to invoke them (i.e., detatched as with `nohup`) and you can also check
 status or kill them at any time (as with a Unix service).
 
+Probably the most simlar tool to Procdog is [Supervisor](https://github.com/Supervisor/supervisor).
+Although it has similar goals, it is a more complex, production-oriented tool with a
+long-lived, centrailized XML-RPC server that monitors processes. Procdog is intended
+to be a single, simple, easy-to-use command that needn't be set up and managed itself
+or run as root. Each use of Procdog is independent and monitors just one process.
+
 You'll find it useful if you have servers, databases, or other processes you want
 to manage on your personal machine, when developing, in build systems and test
 harnesses, etc. Currently, it *doesn't* have restart logic, log file rotation,
 or some other features you may want for a production environments; for this
-consider Upstart, systemd, & co.
+consider Supervisor, Upstart, systemd, & co.
+
 
 ## Installation
 
