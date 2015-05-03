@@ -34,19 +34,20 @@ shell used to invoke them (i.e., detatched as with `nohup`) and you can also che
 status or kill them at any time (as with a Unix service).
 
 Probably the most simlar tool to Procdog is [Supervisor](https://github.com/Supervisor/supervisor).
-Although it has similar goals, it is a more complex, production-oriented tool with a
+Although it has similar goals, Supervisor is a more complex, production-oriented tool with a
 long-lived, centrailized XML-RPC server that monitors processes. Procdog is intended
 to be a single, simple, easy-to-use command that needn't be set up and managed itself
-or run as root. Each use of Procdog is independent and monitors just one process. You
-can even check the Procdog script into your own project so developers can immediately
-use it locally, since it has no dependencies (besides Python 2.7).
+or run as root. Each use of Procdog is independent and monitors just one process. It
+does not require a configuration file unless you want to save typing. You can even
+check the Procdog script into your own project so developers can immediately use it
+locally, since it has no dependencies (besides Python 2.7).
 
 You'll find it useful if you have servers, databases, or other processes you want
-to manage on your personal machine, when developing, in build systems and test
-harnesses, etc. Currently, it *doesn't* have restart logic, log file rotation,
-or some other features you may want for a production environments; for this
-consider Supervisor, Upstart, systemd, & co. Procdog is also *way* less mature than
-these alternatives.
+to manage on your personal machine when developing, in build systems and test
+harnesses, test deployments, etc. Currently, it *doesn't* have restart
+logic, log file rotation, or some other features you may want for a production
+environments; for this consider Supervisor, Upstart, systemd, & co. Procdog is
+also *way* less mature than these alternatives.
 
 ## Installation
 
