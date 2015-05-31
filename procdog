@@ -544,7 +544,6 @@ def start(proc_name, shell_cmd, options, strict=False):
     if options.ensure_healthy:
       _debug("monitor: ensure_healthy is set, waiting for health")
       resp = send_command(proc_name, CMD_WAIT)
-      # TODO: Replace with proper response parsing.
       if resp.is_unhealthy():
         _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
         resp = send_command(proc_name, CMD_STOP)
@@ -733,15 +732,14 @@ if __name__ == '__main__':
 #     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening
 # - in non-strict mode expose via a second variable whether process was already started/stopped
-# - remove wait command
+# - remove wait, or replace wait command with clearer-named alternative (wait for start vs wait for health)
 # - add restart command
 # - service support
 #     add a symlink target for /etc/init.d to auto-convert to a service script (like /lib/init/upstart-job)
-# - add restart command
-#     add loading from /etc/procdog.conf and/or /etc/procdog.d/*
+# - add config loading from /etc/procdog.conf and/or /etc/procdog.d/*
 # - pipe log output to process (like logrotate) if target starts with "|"
 # - auto restart n times within k seconds on process dying
-# - figure out commands for wait-for-health vs wait-for-exit
+# - figure out/clarify commands for wait-for-health vs wait-for-exit
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
 # - --shell option that invokes full shell parsing of command and health_command (and disable Template-based expansion)
