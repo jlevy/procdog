@@ -35,7 +35,7 @@ except ImportError:
     import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.10"
+VERSION = "0.1.11"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -750,6 +750,8 @@ def main():
         # TODO: Could and no-expand option to disable variable expansion (perhaps useful with --shell).
         options = options._replace(command=_expand_variables(options.command),
                                    health_command=_expand_variables(options.health_command),
+                                   stdout=_expand_variables(options.stdout),
+                                   stderr=_expand_variables(options.stderr),
                                    dir=_expand_variables(options.dir) or os.getcwd())
 
         if not re.compile("^[\\w-]+$").match(args.proc_name):
