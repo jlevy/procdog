@@ -104,6 +104,12 @@ procdog status slow-health
 
 procdog stop slow-health
 
+# Test --shell argument.
+rm -f tmp.stdout.*
+
+procdog start printenv --command "ANIMAL=pangolin printenv" --stdout tmp.stdout.printenv --dir /tmp --shell || expect_error
+
+grep pangolin /tmp/tmp.stdout.printenv
 
 # Short-lived processes and error conditions.
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*

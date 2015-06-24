@@ -35,7 +35,7 @@ except ImportError:
     import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.9"
+VERSION = "0.1.10"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -195,9 +195,6 @@ class Response:
     def is_running(self):
         return self.code == RESP_RUNNING
 
-    def is_unhealthy(self):
-        return self.is_running() and not self.is_healthy()
-
     def is_healthy(self):
         return self.is_running() and int(self.values.get("health", -1)) == 0
 
@@ -310,10 +307,10 @@ class _HandleThread(Thread):
                 connection.close()
 
 
-def _health_check(health_cmd, count=None):
+def _health_check(health_cmd, count=None, shell=False):
     _debug("monitor: running health check: command: %s" % health_cmd)
-    args = shlex.split(health_cmd)
-    health = subprocess.call(args, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT)
+    args = health_cmd if shell else shlex.split(health_cmd)
+    health = subprocess.call(args, stdin=_NULL_INPUT, stdout=_NULL_OUTPUT, stderr=_NULL_OUTPUT, shell=shell)
     _debug("monitor: health check%s: result: %s" % ("" if count is None else " %s" % count, health))
     return health
 
@@ -470,8 +467,8 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
 
             # Start process, tracking any immediate errors.
             try:
-                args = shlex.split(shell_cmd)
-                popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr)
+                args = shell_cmd if options.shell else shlex.split(shell_cmd)
+                popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr, shell=options.shell)
             except OSError as e:
                 error = "Failed to start: %s: %s" % (e, shell_cmd)
                 _info("monitor: %s" % error)
@@ -559,9 +556,11 @@ def start(proc_name, shell_cmd, options, strict=False):
         if options.ensure_healthy:
             _debug("monitor: ensure_healthy is set, waiting for health")
             resp = send_command(proc_name, CMD_WAIT)
-            if resp.is_unhealthy():
+            if resp.is_running() and not resp.is_healthy():
                 _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
                 resp = send_command(proc_name, CMD_STOP)
+            elif not resp.is_running():
+                _debug("monitor: ensure_healthy is set but process is not running (%s)" % resp)
             else:
                 _debug("monitor: ensure_healthy is set and process is still healthy (%s)" % resp)
         else:
@@ -663,7 +662,7 @@ def _execute(proc_name, control_cmd, options):
 # These are the options configurable by file or command line.
 Options = namedtuple(
     "Options",
-    "command health_command health_count health_delay ensure_healthy dir stdin stdout stderr append linger strict")
+    "command health_command health_count health_delay ensure_healthy dir stdin stdout stderr append linger strict shell")
 
 OPTION_DEFAULTS = Options(command=None,
                           health_command=None,
@@ -676,7 +675,8 @@ OPTION_DEFAULTS = Options(command=None,
                           stderr=None,
                           append=False,
                           linger=3.,
-                          strict=False)
+                          strict=False,
+                          shell=False)
 
 
 def main():
@@ -701,6 +701,9 @@ def main():
     parser.add_argument("--linger", help="with start: seconds for monitor to linger, preserving exit code", type=float)
     parser.add_argument("--strict",
                         help="abort with error if asked to start a started process or stop a stopped one",
+                        action="store_true")
+    parser.add_argument("--shell",
+                        help="use shell to fully parse/execute the command string",
                         action="store_true")
     parser.add_argument("--config", help="non-default location on config file to read")
     parser.add_argument("--debug", help="enable debugging output", action="store_true")
@@ -744,6 +747,7 @@ def main():
 
         # Final preparation of options.
         # Expand environment variables now, while they are available.
+        # TODO: Could and no-expand option to disable variable expansion (perhaps useful with --shell).
         options = options._replace(command=_expand_variables(options.command),
                                    health_command=_expand_variables(options.health_command),
                                    dir=_expand_variables(options.dir) or os.getcwd())
@@ -792,7 +796,6 @@ if __name__ == '__main__':
 # - figure out/clarify commands for wait-for-health vs wait-for-exit
 # - on Linux, exit code doesn't show kill signal (-15): stop gives 'exited, returncode=0' vs 'exited, returncode=-15'
 # - kill -15 followed by kill -9 if no response; custom kill signals
-# - --shell option that invokes full shell parsing of command and health_command (and disable Template-based expansion)
 # - list command to show status of all running processes
 # - customizable shutdown command (e.g. another script to execute that does something besides just kill)
 # - restart (kill + start) command

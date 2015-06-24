@@ -9,7 +9,8 @@ usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
-               [--linger LINGER] [--strict] [--config CONFIG] [--debug]
+               [--linger LINGER] [--strict] [--shell] [--config CONFIG]
+               [--debug]
                {start,status,wait,stop} proc_name
 procdog: error: argument control_cmd: invalid choice: 'blah' (choose from 'start', 'status', 'wait', 'stop')
 (got expected error: status 2)
@@ -19,19 +20,21 @@ usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
-               [--linger LINGER] [--strict] [--config CONFIG] [--debug]
+               [--linger LINGER] [--strict] [--shell] [--config CONFIG]
+               [--debug]
                {start,status,wait,stop} proc_name
 procdog: error: too few arguments
 (got expected error: status 2)
 
 procdog status foo@bar || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 usage: procdog [-h] [-v] [-c COMMAND] [--health-command HEALTH_COMMAND]
                [--health-count HEALTH_COUNT] [--health-delay HEALTH_DELAY]
                [--ensure-healthy] [--dir DIR] [--stdin STDIN]
                [--stdout STDOUT] [--stderr STDERR] [--append]
-               [--linger LINGER] [--strict] [--config CONFIG] [--debug]
+               [--linger LINGER] [--strict] [--shell] [--config CONFIG]
+               [--debug]
                {start,status,wait,stop} proc_name
 procdog: error: Invalid process name 'foo@bar'; must be alphanumeric, with only underscores or dashes
 (got expected error: status 2)
@@ -39,24 +42,24 @@ procdog: error: Invalid process name 'foo@bar'; must be alphanumeric, with only 
 # Start, stop, and status on a long-lived process.
 procdog status long || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: exit code 5 (based on 'stopped' with strict=False and ensure_healthy=False)
 stopped
 (got expected error: status 5)
 
 procdog wait long || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: exit code 6 (based on 'stopped' with strict=False and ensure_healthy=False)
 stopped
 (got expected error: status 6)
 
 procdog start long --command "sleep 5" --health-command "true"
 procdog (_PID_): debug: command-line options: {'command': 'sleep 5', 'health_command': 'true'}
-procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.long.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.long.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -84,7 +87,7 @@ ls -1 /var/tmp/procdog.long.*
 
 procdog status long
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
@@ -97,7 +100,7 @@ running, health=0, pid=_PID_
 
 procdog wait long
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'wait'
@@ -110,7 +113,7 @@ running, health=0, pid=_PID_
 
 procdog start long --command "sleep 5" --health-command "true"
 procdog (_PID_): debug: command-line options: {'command': 'sleep 5', 'health_command': 'true'}
-procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: False: /var/tmp/procdog.long.lock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -124,14 +127,14 @@ running, health=0, pid=_PID_
 
 procdog start long --command "sleep 5" --health-command "true" --strict || expect_error
 procdog (_PID_): debug: command-line options: {'strict': True, 'command': 'sleep 5', 'health_command': 'true'}
-procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: acquired lock: False: /var/tmp/procdog.long.lock
 procdog: error: process 'long' is already running
 (got expected error: status 4)
 
 procdog stop long
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -146,7 +149,7 @@ ls -1 /var/tmp/procdog.long.*
 
 procdog stop long
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -157,7 +160,7 @@ exited, returncode=-15
 
 procdog stop long --strict || expect_error
 procdog (_PID_): debug: command-line options: {'strict': True}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -171,17 +174,17 @@ sleep 4
 # Start, stop, and status on a short-lived process.
 procdog status short || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: exit code 5 (based on 'stopped' with strict=False and ensure_healthy=False)
 stopped
 (got expected error: status 5)
 
 procdog start short --command "sleep 1"
 procdog (_PID_): debug: command-line options: {'command': 'sleep 1'}
-procdog (_PID_): debug: combined options: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.short.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.short.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -201,7 +204,7 @@ procdog (_PID_): monitor: process done (code 0), exiting
 
 procdog status short || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
@@ -213,10 +216,10 @@ exited, returncode=0
 
 procdog start short --command "sleep 1" --strict
 procdog (_PID_): debug: command-line options: {'strict': True, 'command': 'sleep 1'}
-procdog (_PID_): debug: combined options: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.short.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): monitor: starting with Options(command='sleep 1', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.short.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -234,7 +237,7 @@ running, pid=_PID_
 
 procdog stop short
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -246,7 +249,7 @@ killed, signal=15
 
 procdog stop short --strict || expect_error
 procdog (_PID_): debug: command-line options: {'strict': True}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -259,17 +262,17 @@ exited, returncode=-15
 # A long-lived unhealthy process.
 procdog wait unhealthy1 || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: exit code 6 (based on 'stopped' with strict=False and ensure_healthy=False)
 stopped
 (got expected error: status 6)
 
 procdog start unhealthy1 --command "sleep 100" --health-command "false"
 procdog (_PID_): debug: command-line options: {'command': 'sleep 100', 'health_command': 'false'}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.unhealthy1.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.unhealthy1.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -291,7 +294,7 @@ running, health=1, pid=_PID_
 
 procdog wait unhealthy1 || expect_error
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'wait'
@@ -313,7 +316,7 @@ running, health=1, pid=_PID_
 
 procdog stop unhealthy1
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -326,10 +329,10 @@ killed, signal=15
 # Test --ensure-healthy.
 procdog start ensure1 --command "sleep 100" --health-command "true" --ensure-healthy
 procdog (_PID_): debug: command-line options: {'ensure_healthy': True, 'command': 'sleep 100', 'health_command': 'true'}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.ensure1.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.ensure1.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -353,7 +356,7 @@ running, health=0, pid=_PID_
 
 procdog stop ensure1
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
@@ -365,10 +368,10 @@ killed, signal=15
 
 procdog start ensure2 --command "sleep 100" --health-command "false" --ensure-healthy || expect_error
 procdog (_PID_): debug: command-line options: {'ensure_healthy': True, 'command': 'sleep 100', 'health_command': 'false'}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.ensure2.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='false', health_count=5, health_delay=1.0, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.ensure2.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -412,7 +415,7 @@ procdog start slow-health --command "sleep 100" --health-command "sleep 4" >/dev
 sleep 0.1
 procdog start slow-health --command "sleep 100" --health-command "sleep 4"
 procdog (_PID_): debug: command-line options: {'command': 'sleep 100', 'health_command': 'sleep 4'}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='sleep 4', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='sleep 4', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: False: /var/tmp/procdog.slow-health.lock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: client: status: running, health=0, pid=_PID_
@@ -421,7 +424,7 @@ running, health=0, pid=_PID_
 
 procdog status slow-health
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: client: status: running, health=0, pid=_PID_
 procdog (_PID_): debug: client: exit code 0 (based on 'running, health=0, pid=_PID_' with strict=False and ensure_healthy=False)
@@ -429,22 +432,51 @@ running, health=0, pid=_PID_
 
 procdog stop slow-health
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: client: stop: killed, signal=15
 procdog (_PID_): debug: client: exit code 0 (based on 'killed, signal=15' with strict=False and ensure_healthy=False)
 killed, signal=15
 
+# Test --shell argument.
+rm -f tmp.stdout.*
+
+procdog start printenv --command "ANIMAL=pangolin printenv" --stdout tmp.stdout.printenv --dir /tmp --shell || expect_error
+procdog (_PID_): debug: command-line options: {'shell': True, 'command': 'ANIMAL=pangolin printenv', 'dir': '/tmp', 'stdout': 'tmp.stdout.printenv'}
+procdog (_PID_): debug: combined options: Options(command='ANIMAL=pangolin printenv', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.printenv', stderr=None, append=False, linger=3.0, strict=False, shell=True)
+procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.printenv.lock
+procdog (_PID_): debug: client: wait: checking for connect...
+procdog (_PID_): monitor: starting with Options(command='ANIMAL=pangolin printenv', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.printenv', stderr=None, append=False, linger=3.0, strict=False, shell=True)
+procdog (_PID_): monitor: listening on /var/tmp/procdog.printenv.sock
+procdog (_PID_): monitor: process done (code 0), exiting
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: monitor: received command 'status'
+procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
+procdog (_PID_): debug: client: status: exited, returncode=0
+procdog (_PID_): debug: client: wait: connect success
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: monitor: received command 'status'
+procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
+procdog (_PID_): debug: client: status: exited, returncode=0
+procdog (_PID_): debug: client: exit code 5 (based on 'exited, returncode=0' with strict=False and ensure_healthy=False)
+exited, returncode=0
+(got expected error: status 5)
+
+grep pangolin /tmp/tmp.stdout.printenv
+procdog: _TIMESTAMP_ Starting process 'printenv' with options: Options(command='ANIMAL=pangolin printenv', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.printenv', stderr=None, append=False, linger=3.0, strict=False, shell=True)
+ANIMAL=pangolin
 
 # Short-lived processes and error conditions.
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
 procdog start err1 --command "no-such-command" || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'no-such-command'}
-procdog (_PID_): debug: combined options: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.err1.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='no-such-command', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.err1.sock
 procdog (_PID_): monitor: Failed to start: [Errno 2] No such file or directory: 'no-such-command': no-such-command
 procdog (_PID_): debug: client: connected
@@ -462,10 +494,10 @@ error: Failed to start: [Errno 2] No such file or directory: 'no-such-command': 
 
 procdog start err2 --command "false" || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'false'}
-procdog (_PID_): debug: combined options: Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.err2.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='false', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.err2.sock
 procdog (_PID_): monitor: process done (code 1), exiting
 procdog (_PID_): debug: client: connected
@@ -485,10 +517,10 @@ exited, returncode=1
 
 procdog start pwd --command "pwd" --stdout tmp.stdout.pwd || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'pwd', 'stdout': 'tmp.stdout.pwd'}
-procdog (_PID_): debug: combined options: Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.pwd.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.pwd.sock
 procdog (_PID_): monitor: process done (code 0), exiting
 procdog (_PID_): debug: client: connected
@@ -510,10 +542,10 @@ tail -1 tmp.stdout.pwd
 
 procdog start pwd --command "pwd" --stdout tmp.stdout.pwd --dir /tmp || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'pwd', 'dir': '/tmp', 'stdout': 'tmp.stdout.pwd'}
-procdog (_PID_): debug: combined options: Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.pwd.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='pwd', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp', stdin=None, stdout='tmp.stdout.pwd', stderr=None, append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.pwd.sock
 procdog (_PID_): monitor: process done (code 0), exiting
 procdog (_PID_): debug: client: connected
@@ -537,10 +569,10 @@ tail -1 /tmp/tmp.stdout.pwd
 export TESTENV=wensleydale
 procdog start out1 --command 'echo hello $TESTENV' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1 || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'echo hello $TESTENV', 'stderr': 'tmp.stderr.out1', 'stdout': 'tmp.stdout.out1'}
-procdog (_PID_): debug: combined options: Options(command='echo hello $TESTENV', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='echo hello $TESTENV', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.out1.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.out1.sock
 procdog (_PID_): monitor: process done (code 0), exiting
 procdog (_PID_): debug: client: connected
@@ -559,15 +591,15 @@ exited, returncode=0
 (got expected error: status 5)
 sleep 1
 cat tmp.stdout.out1
-procdog: _TIMESTAMP_ Starting process 'out1' with options: Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog: _TIMESTAMP_ Starting process 'out1' with options: Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 hello wensleydale
 cat tmp.stderr.out1
-procdog: _TIMESTAMP_ Starting process 'out1' with options: Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog: _TIMESTAMP_ Starting process 'out1' with options: Options(command='echo hello wensleydale', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 rm -f tmp.stdout.* tmp.stderr.* tmp.stdin.*
 
 procdog start out1 --command 'echo hello $BADENVVAR' --stdout tmp.stdout.out1 --stderr tmp.stderr.out1 || expect_error
 procdog (_PID_): debug: command-line options: {'command': 'echo hello $BADENVVAR', 'stderr': 'tmp.stderr.out1', 'stdout': 'tmp.stdout.out1'}
-procdog (_PID_): debug: combined options: Options(command='echo hello $BADENVVAR', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='echo hello $BADENVVAR', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 procdog: error: could not expand environment variable names in command 'echo hello $BADENVVAR': 'BADENVVAR'
 (got expected error: status 3)
 
@@ -575,10 +607,10 @@ procdog: error: could not expand environment variable names in command 'echo hel
 echo input > tmp.stdin.out2
 procdog start out2 --command "cat" --stdin tmp.stdin.out2 --stdout tmp.stdout.out2 --stderr tmp.stdout.out2 || expect_error
 procdog (_PID_): debug: command-line options: {'stdin': 'tmp.stdin.out2', 'command': 'cat', 'stderr': 'tmp.stdout.out2', 'stdout': 'tmp.stdout.out2'}
-procdog (_PID_): debug: combined options: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False)
+procdog (_PID_): debug: combined options: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.out2.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False)
+procdog (_PID_): monitor: starting with Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.out2.sock
 procdog (_PID_): monitor: process done (code 0), exiting
 procdog (_PID_): debug: client: connected
@@ -598,17 +630,17 @@ exited, returncode=0
 cat tmp.stdin.out2
 input
 cat tmp.stdout.out2
-procdog: _TIMESTAMP_ Starting process 'out2' with options: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False)
+procdog: _TIMESTAMP_ Starting process 'out2' with options: Options(command='cat', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin='tmp.stdin.out2', stdout='tmp.stdout.out2', stderr='tmp.stdout.out2', append=False, linger=3.0, strict=False, shell=False)
 input
 
 # Configuration tests.
 procdog start conftest --config $config_file
 procdog (_PID_): debug: config file options from file _PATH_/procdog.cfg: {'health_command': 'true', 'health_delay': 0.5, 'strict': True, 'health_count': 10, 'command': 'sleep 100', 'ensure_healthy': True}
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.conftest.lock
 procdog (_PID_): debug: client: wait: checking for connect...
-procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): monitor: starting with Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): monitor: listening on /var/tmp/procdog.conftest.sock
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
@@ -633,7 +665,7 @@ running, health=0, pid=_PID_
 procdog stop conftest --config $config_file
 procdog (_PID_): debug: config file options from file _PATH_/procdog.cfg: {'health_command': 'true', 'health_delay': 0.5, 'strict': True, 'health_count': 10, 'command': 'sleep 100', 'ensure_healthy': True}
 procdog (_PID_): debug: command-line options: {}
-procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True)
+procdog (_PID_): debug: combined options: Options(command='sleep 100', health_command='true', health_count=10, health_delay=0.5, ensure_healthy=True, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: connected
 procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'stop'
