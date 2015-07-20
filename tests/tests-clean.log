@@ -212,7 +212,7 @@ procdog (_PID_): debug: client: exit code 0 (based on 'killed, signal=15' with s
 killed, signal=15
 
 pgrep -q -f "sleep 200" && echo "still running" || echo "process done"
-still running
+process done
 
 # Start, stop, and status on a short-lived process.
 procdog status short || expect_error
@@ -572,8 +572,8 @@ procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0
 procdog (_PID_): debug: client: wait: connect success
-procdog (_PID_): debug: client: connectedprocdog (_PID_): debug: monitor: listen accept
-
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
 procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0

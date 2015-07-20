@@ -35,7 +35,7 @@ except ImportError:
     import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.11"
+VERSION = "0.1.12"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
@@ -356,7 +356,7 @@ def _handle_command(cmd, popen, options):
         elif cmd == CMD_STOP:
             if popen.poll() is None:
                 # TODO: Handle additional signals besides 15
-                popen.terminate()
+                os.killpg(os.getpgid(popen.pid), 15)
                 popen.wait()
                 resp = Response(code=RESP_KILLED, signal=15)
             else:
@@ -468,7 +468,7 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
             # Start process, tracking any immediate errors.
             try:
                 args = shell_cmd if options.shell else shlex.split(shell_cmd)
-                popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr, shell=options.shell)
+                popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr, shell=options.shell, preexec_fn=os.setsid)
             except OSError as e:
                 error = "Failed to start: %s: %s" % (e, shell_cmd)
                 _info("monitor: %s" % error)
@@ -787,6 +787,7 @@ if __name__ == '__main__':
 # - handle corner case scenario:
 #     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening
+# - handle bad stdout/stderr output file/directory gracefully
 # - in non-strict mode expose via a second variable whether process was already started/stopped
 # - remove wait, or replace wait command with clearer-named alternative (wait for start vs wait for health)
 # - add restart command
