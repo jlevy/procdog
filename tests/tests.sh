@@ -63,6 +63,19 @@ procdog stop long
 procdog stop long --strict || expect_error
 sleep 4
 
+# Start and stop a shell script, to test process groups.
+cat > ./sample-script.sh <<EOF
+#!/bin/bash
+sleep 200
+EOF
+chmod +x ./sample-script.sh
+
+procdog start script --command "./sample-script.sh"
+
+procdog stop script
+
+pgrep -q -f "sleep 200" && echo "still running" || echo "process done"
+
 # Start, stop, and status on a short-lived process.
 procdog status short || expect_error
 

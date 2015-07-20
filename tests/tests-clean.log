@@ -171,6 +171,49 @@ exited, returncode=-15
 (got expected error: status 5)
 sleep 4
 
+# Start and stop a shell script, to test process groups.
+cat > ./sample-script.sh <<EOF
+#!/bin/bash
+sleep 200
+EOF
+chmod +x ./sample-script.sh
+
+procdog start script --command "./sample-script.sh"
+procdog (_PID_): debug: command-line options: {'command': './sample-script.sh'}
+procdog (_PID_): debug: combined options: Options(command='./sample-script.sh', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
+procdog (_PID_): debug: client: acquired lock: True: /var/tmp/procdog.script.lock
+procdog (_PID_): debug: client: wait: checking for connect...
+procdog (_PID_): monitor: starting with Options(command='./sample-script.sh', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir='/tmp/procdog-tests', stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
+procdog (_PID_): monitor: listening on /var/tmp/procdog.script.sock
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: monitor: received command 'status'
+procdog (_PID_): monitor: command 'status': response 'running, pid=_PID_'
+procdog (_PID_): debug: client: status: running, pid=_PID_
+procdog (_PID_): debug: client: wait: connect success
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: monitor: received command 'status'
+procdog (_PID_): monitor: command 'status': response 'running, pid=_PID_'
+procdog (_PID_): debug: client: status: running, pid=_PID_
+procdog (_PID_): debug: client: exit code 0 (based on 'running, pid=_PID_' with strict=False and ensure_healthy=False)
+running, pid=_PID_
+
+procdog stop script
+procdog (_PID_): debug: command-line options: {}
+procdog (_PID_): debug: combined options: Options(command=None, health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=False, shell=False)
+procdog (_PID_): debug: client: connected
+procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: monitor: received command 'stop'
+procdog (_PID_): monitor: process done (code -15), exiting
+procdog (_PID_): monitor: command 'stop': response 'killed, signal=15'
+procdog (_PID_): debug: client: stop: killed, signal=15
+procdog (_PID_): debug: client: exit code 0 (based on 'killed, signal=15' with strict=False and ensure_healthy=False)
+killed, signal=15
+
+pgrep -q -f "sleep 200" && echo "still running" || echo "process done"
+still running
+
 # Start, stop, and status on a short-lived process.
 procdog status short || expect_error
 procdog (_PID_): debug: command-line options: {}
@@ -529,8 +572,8 @@ procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0
 procdog (_PID_): debug: client: wait: connect success
-procdog (_PID_): debug: client: connected
-procdog (_PID_): debug: monitor: listen accept
+procdog (_PID_): debug: client: connectedprocdog (_PID_): debug: monitor: listen accept
+
 procdog (_PID_): debug: monitor: received command 'status'
 procdog (_PID_): monitor: command 'status': response 'exited, returncode=0'
 procdog (_PID_): debug: client: status: exited, returncode=0
