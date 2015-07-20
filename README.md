@@ -51,8 +51,13 @@ also *way* less mature than these alternatives.
 
 ## Installation
 
-Copy the single [`procdog`](https://github.com/jlevy/procdog/blob/master/procdog)
-file into your path. Requires Python 2.7.
+No dependencies except Python 2.7+. It's easiest to install with pip:
+
+    sudo pip install procdog
+
+Or, since it's just one file, you can copy the single
+[`procdog`](https://github.com/jlevy/procdog/blob/master/procdog)
+script somewhere (perhaps within your own project) and make it executable.
 
 ## Quick start
 
@@ -108,7 +113,7 @@ Some notes on this:
 - The health command simply calls a shell command to see if the server is healthy.
   The return code of the health check command must be `0` for the server to be considered
   healthy. In this case, we're callin `curl` on a known health-check URL, which will have
-  return code 0 on an HTTP 200 
+  return code 0 on an HTTP 200
 - The `--ensure-healthy` option means the command will block until the process is healthy,
   or until the daemon gives up and kills the process (if necessary). In this example,
   it will try 10 times, sleeping 2 seconds each time, before giving up.
@@ -178,5 +183,3 @@ the output using `git`.
 ## License
 
 [Apache 2](https://github.com/jlevy/procdog/blob/master/LICENSE).
-
-

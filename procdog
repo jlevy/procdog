@@ -37,6 +37,7 @@ except ImportError:
 NAME = "procdog"
 VERSION = "0.1.12"
 DESCRIPTION = "procdog: Lightweight command-line process control"
+LONG_DESCRIPTION = __doc__
 
 SOCKET_PATH_PAT = "/var/tmp/" + NAME + ".%s.sock"
 LOCK_PATH_PAT = "/var/tmp/" + NAME + ".%s.lock"
