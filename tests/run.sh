@@ -18,6 +18,8 @@ cd /tmp/procdog-tests
 # Update these patterns as appropriate.
 # Note we use perl not sed, so it works on Mac and Linux. The $|=1; is just for the impatient and ensures line buffering.
 $dir/tests.sh 2>&1 | tee $full_log \
+  | perl -pe '$|=1; s/File ".*\/([a-zA-Z0-9._]+)", line [0-9]*,/File "...\/\1", line __X,/g' \
+  | perl -pe '$|=1; s/, line [0-9]*,/, line __X,/g' \
   | perl -pe '$|=1; s/pid=[0-9]*/pid=_PID_/g' \
   | perl -pe '$|=1; s/[0-9.:T-]*Z/_TIMESTAMP_/g' \
   | perl -pe '$|=1; s/[a-zA-Z0-9\/]*procdog.cfg/_PATH_\/procdog.cfg/g' \

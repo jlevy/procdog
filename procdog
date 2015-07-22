@@ -22,7 +22,7 @@ For further documentation, see: https://github.com/jlevy/procdog
 # Created: 2015-03-14
 
 from __future__ import print_function
-import socket, sys, os, errno, time, shlex, ConfigParser, argparse, re
+import socket, sys, os, errno, time, shlex, ConfigParser, argparse, re, traceback
 from collections import namedtuple
 from string import Template
 from datetime import datetime
@@ -35,7 +35,7 @@ except ImportError:
     import subprocess
 
 NAME = "procdog"
-VERSION = "0.1.12"
+VERSION = "0.1.13"
 DESCRIPTION = "procdog: Lightweight command-line process control"
 LONG_DESCRIPTION = __doc__
 
@@ -77,8 +77,9 @@ HEALTHY_CODE = 0
 
 EOM = "\n"
 
-# Connect timeout to local Unix domain socket.
+# Timeouts to connect and send to local Unix domain socket.
 SOCKET_TIMEOUT = 3
+SEND_TIMEOUT = 10
 
 DEBUG = False
 
@@ -101,6 +102,10 @@ class StateException(Exception):
 
 
 class NotRunningException(StateException):
+    pass
+
+
+class MonitorNotRunning(NotRunningException):
     pass
 
 
@@ -244,13 +249,17 @@ def _debug(msg):
             print("%s (%s): debug: %s" % (NAME, os.getpid(), msg), file=sys.stderr)
 
 
-def _info(msg):
+def _info(msg, exc_info=None):
     with _LOG_LOCK:
-        print("%s (%s): %s" % (NAME, os.getpid(), msg), file=sys.stderr)
+        exc_str = "\n%s" % "".join(traceback.format_exception(*exc_info)) if exc_info else ""
+        print("%s (%s): %s%s" % (NAME, os.getpid(), msg, exc_str), file=sys.stderr)
 
 
-def _die(msg, code=1):
+def _die(msg, code=1, exceptional=False):
     print("%s: error: %s" % (NAME, msg), file=sys.stderr)
+    global DEBUG
+    if DEBUG:
+        traceback.print_exc(file=sys.stderr)
     sys.exit(code)
 
 
@@ -297,6 +306,7 @@ class _HandleThread(Thread):
         self.daemon = True  # Do not prevent process termination on shutdown.
 
     def run(self):
+        failure_count = 0
         while True:
             connection = self.queue.get(True)
             try:
@@ -304,6 +314,13 @@ class _HandleThread(Thread):
                 _debug("monitor: received command '%s'" % cmd)
                 response = self.handler(cmd)
                 connection.sendall(response + EOM)
+            except:
+                # Catch anything not already caught by the handler (e.g. a broken pipe on send).
+                failure_count += 1
+                if failure_count < 5:
+                    _info("monitor: handler exception", exc_info=sys.exc_info())
+                else:
+                    raise
             finally:
                 connection.close()
 
@@ -435,6 +452,7 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
     unlink_path(socket_path, silent=False)
 
     # Deamonize. If we're debugging, keep all debug output on the console.
+    global DEBUG
     is_daemon = daemonize(home_dir=options.dir, do_redirect=not DEBUG, stdout=LOG_PATH_PAT % proc_name)
 
     if is_daemon:
@@ -469,7 +487,12 @@ def daemonize_and_monitor(proc_name, shell_cmd, options):
             # Start process, tracking any immediate errors.
             try:
                 args = shell_cmd if options.shell else shlex.split(shell_cmd)
-                popen = subprocess.Popen(args, stdin=fin, stdout=fout, stderr=ferr, shell=options.shell, preexec_fn=os.setsid)
+                popen = subprocess.Popen(args,
+                                         stdin=fin,
+                                         stdout=fout,
+                                         stderr=ferr,
+                                         shell=options.shell,
+                                         preexec_fn=os.setsid)
             except OSError as e:
                 error = "Failed to start: %s: %s" % (e, shell_cmd)
                 _info("monitor: %s" % error)
@@ -514,8 +537,8 @@ def send_command(proc_name, cmd):
         # Set a short timeout on connect, in case process not running. Once we connect, disable the timeout.
         sock.settimeout(SOCKET_TIMEOUT)
         sock.connect(SOCKET_PATH_PAT % proc_name)
-        sock.settimeout(None)
         _debug("client: connected")
+        sock.settimeout(SEND_TIMEOUT)
         sock.sendall(cmd + EOM)
         data = _recv_msg(sock)
         if not data:
@@ -523,8 +546,14 @@ def send_command(proc_name, cmd):
             raise NotRunningException("no data from monitor")
         _debug("client: %s: %s" % (cmd, data))
         return Response(raw=data)
-    except socket.error as msg:
-        raise NotRunningException("socket error: %s" % msg)
+    except socket.error as e:
+        # Detect problematic corner cases where monitor has been killed, crashed, tampered with, etc.
+        # If we get connection refused (61) process can't be running.
+        # If we get file not found (2), the socket file is missing.
+        if e.errno == 61 or e.errno == 2:
+            raise MonitorNotRunning("couldn't connect: %s" % e)
+        else:
+            raise NotRunningException("socket error: %s" % e)
     finally:
         sock.close()
 
@@ -544,6 +573,23 @@ def _wait_for_connect(proc_name):
     raise OtherException("timeout connecting to monitor: %s" % exc)
 
 
+def _start_monitor(proc_name, shell_cmd, options):
+    daemonize_and_monitor(proc_name, shell_cmd, options)
+    if options.ensure_healthy:
+        _debug("monitor: ensure_healthy is set, waiting for health")
+        resp = send_command(proc_name, CMD_WAIT)
+        if resp.is_running() and not resp.is_healthy():
+            _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
+            resp = send_command(proc_name, CMD_STOP)
+        elif not resp.is_running():
+            _debug("monitor: ensure_healthy is set but process is not running (%s)" % resp)
+        else:
+            _debug("monitor: ensure_healthy is set and process is still healthy (%s)" % resp)
+    else:
+        resp = send_command(proc_name, CMD_STATUS)
+    return resp
+
+
 def start(proc_name, shell_cmd, options, strict=False):
     '''Start a process, assigning it the given id. If strict is true, return existing process status;
      otherwise raise exception if process already is running.'''
@@ -553,24 +599,16 @@ def start(proc_name, shell_cmd, options, strict=False):
     _debug("client: acquired lock: %s: %s" % (lock_acquired, lock_path))
 
     if lock_acquired:
-        daemonize_and_monitor(proc_name, shell_cmd, options)
-        if options.ensure_healthy:
-            _debug("monitor: ensure_healthy is set, waiting for health")
-            resp = send_command(proc_name, CMD_WAIT)
-            if resp.is_running() and not resp.is_healthy():
-                _debug("monitor: ensure_healthy is set and process is still not healthy (%s); stopping" % resp)
-                resp = send_command(proc_name, CMD_STOP)
-            elif not resp.is_running():
-                _debug("monitor: ensure_healthy is set but process is not running (%s)" % resp)
-            else:
-                _debug("monitor: ensure_healthy is set and process is still healthy (%s)" % resp)
-        else:
-            resp = send_command(proc_name, CMD_STATUS)
+        resp = _start_monitor(proc_name, shell_cmd, options)
     else:
         if strict:
             raise AlreadyRunningException("process already running (to override, remove lock at %s)" % lock_path)
         else:
-            resp = send_command(proc_name, CMD_STATUS)
+            try:
+                resp = send_command(proc_name, CMD_STATUS)
+            except MonitorNotRunning as e:
+                _debug("client: stale lock file present but monitor not listening; restarting new monitor")
+                resp = _start_monitor(proc_name, shell_cmd, options)
     return resp
 
 
@@ -703,9 +741,7 @@ def main():
     parser.add_argument("--strict",
                         help="abort with error if asked to start a started process or stop a stopped one",
                         action="store_true")
-    parser.add_argument("--shell",
-                        help="use shell to fully parse/execute the command string",
-                        action="store_true")
+    parser.add_argument("--shell", help="use shell to fully parse/execute the command string", action="store_true")
     parser.add_argument("--config", help="non-default location on config file to read")
     parser.add_argument("--debug", help="enable debugging output", action="store_true")
     args = parser.parse_args()
@@ -724,7 +760,7 @@ def main():
 
         def was_explicitly_set(action, val):
             return (type(action) != argparse._StoreTrueAction and type(action) != argparse._StoreFalseAction
-              ) or val != action.default
+                    ) or val != action.default
 
         # These are only the options that were explicitly set.
         command_line_options = {
@@ -774,17 +810,18 @@ def main():
         sys.exit(exit_code)
 
     except AlreadyRunningException as e:
-        _die("process '%s' is already running" % args.proc_name, code=EXIT_ALREADY_RUNNING)
+        _die("process '%s' is already running" % args.proc_name, code=EXIT_ALREADY_RUNNING, exceptional=True)
     except NotRunningException as e:
-        _die("process '%s' is not running" % args.proc_name, code=EXIT_NOT_RUNNING)
+        _die("process '%s' is not running" % args.proc_name, code=EXIT_NOT_RUNNING, exceptional=True)
     except (ValueError, OSError) as e:
-        _die(str(e), code=EXIT_UNKNOWN)
+        _die(str(e), code=EXIT_UNKNOWN, exceptional=True)
 
 
 if __name__ == '__main__':
     main()
 
 # TODO:
+# - better logic around where procdog.cfg can be when procdog is installed globally via pip
 # - handle corner case scenario:
 #     process already started externally without procdog, so process started with procdog fails,
 #     but health check passes immediately since process is listening

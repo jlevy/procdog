@@ -132,6 +132,14 @@ procdog (_PID_): debug: command-line options: {'strict': True, 'command': 'sleep
 procdog (_PID_): debug: combined options: Options(command='sleep 5', health_command='true', health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout=None, stderr=None, append=False, linger=3.0, strict=True, shell=False)
 procdog (_PID_): debug: client: acquired lock: False: /var/tmp/procdog.long.lock
 procdog: error: process 'long' is already running
+Traceback (most recent call last):
+  File ".../procdog", line __X, in main
+    response = _execute(args.proc_name, args.control_cmd, options)
+  File ".../procdog", line __X, in _execute
+    response = start(proc_name, options.command, options=options, strict=options.strict)
+  File ".../procdog", line __X, in start
+    raise AlreadyRunningException("process already running (to override, remove lock at %s)" % lock_path)
+AlreadyRunningException: process already running (to override, remove lock at /var/tmp/procdog.long.lock)
 (got expected error: status 4)
 
 procdog stop long
@@ -646,6 +654,12 @@ procdog start out1 --command 'echo hello $BADENVVAR' --stdout tmp.stdout.out1 --
 procdog (_PID_): debug: command-line options: {'command': 'echo hello $BADENVVAR', 'stderr': 'tmp.stderr.out1', 'stdout': 'tmp.stdout.out1'}
 procdog (_PID_): debug: combined options: Options(command='echo hello $BADENVVAR', health_command=None, health_count=5, health_delay=1.0, ensure_healthy=False, dir=None, stdin=None, stdout='tmp.stdout.out1', stderr='tmp.stderr.out1', append=False, linger=3.0, strict=False, shell=False)
 procdog: error: could not expand environment variable names in command 'echo hello $BADENVVAR': 'BADENVVAR'
+Traceback (most recent call last):
+  File ".../procdog", line __X, in main
+    options = options._replace(command=_expand_variables(options.command),
+  File ".../procdog", line __X, in _expand_variables
+    raise ValueError("could not expand environment variable names in command '%s': %s" % (template_str, e))
+ValueError: could not expand environment variable names in command 'echo hello $BADENVVAR': 'BADENVVAR'
 (got expected error: status 3)
 
 # Read from input and write stderr and stdout to same output.
@@ -722,6 +736,16 @@ killed, signal=15
 
 procdog start conftest_bad --config $config_file || expect_error
 procdog: error: Not a boolean: not-valid
+Traceback (most recent call last):
+  File ".../procdog", line __X, in main
+    file_options = _read_config_file(args.proc_name, config_file, target_types)
+  File ".../procdog", line __X, in _read_config_file
+    out[key] = _parse_config(config, proc_name, key, target_types[key])
+  File ".../procdog", line __X, in _parse_config
+    return config.getboolean(section, option)
+  File ".../ConfigParser.py", line __X, in getboolean
+    raise ValueError, 'Not a boolean: %s' % v
+ValueError: Not a boolean: not-valid
 (got expected error: status 3)
 
 # --- End of tests ---
