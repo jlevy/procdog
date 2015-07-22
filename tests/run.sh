@@ -13,17 +13,17 @@ rm -rf /tmp/procdog-tests
 mkdir /tmp/procdog-tests
 cd /tmp/procdog-tests
 
-$dir/tests.sh >$full_log 2>&1
-
+# Hackity hack:
 # Remove per-run and per-platform details to allow easy comparison.
-# Use basic REs (* not +) to avoid sed flag differences between MacOS and Linux.
-cat $full_log \
-  | sed 's/pid=[0-9]*/pid=_PID_/g' \
-  | sed 's/[0-9.:T-]*Z/_TIMESTAMP_/g' \
-  | sed 's/[a-zA-Z0-9/]*procdog.cfg/_PATH_\/procdog.cfg/g' \
-  | sed 's/\/private\/tmp/\/tmp/g' \
-  | sed 's/procdog [(][0-9]*[)]/procdog (_PID_)/g' \
-  > $clean_log
+# Update these patterns as appropriate.
+# Note we use perl not sed, so it works on Mac and Linux. The $|=1; is just for the impatient and ensures line buffering.
+$dir/tests.sh 2>&1 | tee $full_log \
+  | perl -pe '$|=1; s/pid=[0-9]*/pid=_PID_/g' \
+  | perl -pe '$|=1; s/[0-9.:T-]*Z/_TIMESTAMP_/g' \
+  | perl -pe '$|=1; s/[a-zA-Z0-9\/]*procdog.cfg/_PATH_\/procdog.cfg/g' \
+  | perl -pe '$|=1; s/\/private\/tmp/\/tmp/g' \
+  | perl -pe '$|=1; s/procdog [(][0-9]*[)]/procdog (_PID_)/g' \
+  | tee $clean_log
 
 echo "Tests done."
 echo

@@ -1,4 +1,6 @@
 
+# --- Start of tests ---
+
 # Python version we're using to run tests.
 python -V
 Python 2.7.9
@@ -722,4 +724,4 @@ procdog start conftest_bad --config $config_file || expect_error
 procdog: error: Not a boolean: not-valid
 (got expected error: status 3)
 
-# Done!
+# --- End of tests ---

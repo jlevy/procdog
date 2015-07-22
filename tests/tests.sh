@@ -25,6 +25,8 @@ config_file=`dirname $0`/procdog.cfg
 # but less readable and sometimes not deterministic).
 set -v
 
+# --- Start of tests ---
+
 # Python version we're using to run tests.
 python -V
 
@@ -160,4 +162,4 @@ procdog stop conftest --config $config_file
 
 procdog start conftest_bad --config $config_file || expect_error
 
-# Done!
+# --- End of tests ---
